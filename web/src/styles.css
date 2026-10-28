@@ -1,0 +1,42 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: #f5f6f8;
+  color: #1f2329;
+}
+
+a {
+  color: inherit;
+}
+
+.page-section {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.card-hover:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.card-hover {
+  transition: all 0.2s ease;
+}
+
+.placeholder-box {
+  background: #fff;
+  border-radius: 8px;
+  padding: 48px;
+  text-align: center;
+}

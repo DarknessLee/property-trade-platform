@@ -1,0 +1,385 @@
+// 房产交易数字化协同平台 · 数据模型
+// SQLite 起步，字段与取值保持 PostgreSQL 兼容：JSON 以 TEXT 存储、枚举以 VARCHAR 常量存储。
+// 所有业务表统一带 createdAt / updatedAt / isDeleted（软删除）。
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+/// 用户：买方 / 卖方 / 经纪人 / 店长 / 财务 / 平台管理员
+model User {
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  passwordHash String
+  name         String
+  role         String // buyer | seller | agent | store_manager | finance | admin
+  email        String?
+  avatar       String?
+  status       String   @default("active") // active | disabled
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  isDeleted    Boolean  @default(false)
+
+  realNameAuth RealNameAuth?
+  agent        Agent?
+  listings     HouseListing[]     @relation("ListingOwner")
+  customers    Customer[]
+  notifications Notification[]
+  logs         OperationLog[]
+
+  @@index([role])
+}
+
+/// 实名认证（演示环境：证件号脱敏存储 + 哈希去重，不做真实核验）
+model RealNameAuth {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  realName     String
+  idCardMasked String
+  idCardHash   String    @unique
+  status       String    @default("pending") // pending | approved | rejected
+  rejectReason String?
+  submittedAt  DateTime  @default(now())
+  reviewedAt   DateTime?
+  reviewerId   String?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+/// 机构 / 门店（树形：type=hq 为机构总部，type=store 为门店）
+model Agency {
+  id        String   @id @default(cuid())
+  name      String
+  type      String // hq | store
+  licenseNo String   @unique
+  address   String
+  phone     String
+  parentId  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  isDeleted Boolean  @default(false)
+
+  parent   Agency?  @relation("AgencyTree", fields: [parentId], references: [id])
+  children Agency[] @relation("AgencyTree")
+
+  agents    Agent[]
+  listings  HouseListing[]
+  customers Customer[]
+  contracts Contract[]
+
+  @@index([parentId])
+}
+
+/// 经纪人（用户 + 执业信息）
+model Agent {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  agencyId   String
+  licenseNo  String   @unique
+  title      String   @default("房产经纪人")
+  joinedAt   DateTime
+  status     String   @default("active") // active | inactive
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  isDeleted  Boolean  @default(false)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agency    Agency   @relation(fields: [agencyId], references: [id])
+  listings  HouseListing[]
+  customers Customer[]
+  showings  Showing[]
+  contracts Contract[]
+
+  @@index([agencyId])
+}
+
+/// 小区字典
+model Community {
+  id           String   @id @default(cuid())
+  name         String
+  district     String
+  businessArea String
+  address      String
+  buildYear    Int
+  totalBuildings Int    @default(10)
+  plotRatio    Float
+  greenRate    Float    @default(0.35)
+  propertyFee  Float // 元/㎡/月
+  lng          Float
+  lat          Float
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  isDeleted    Boolean  @default(false)
+
+  listings HouseListing[]
+
+  @@unique([name, district])
+}
+
+/// 房源
+model HouseListing {
+  id             String   @id @default(cuid())
+  code           String   @unique // FC-901-000001
+  title          String
+  communityId    String
+  ownerId        String // 业主（卖方用户）
+  agentId        String // 维护经纪人
+  agencyId       String // 归属门店
+  area           Float // 建筑面积 ㎡
+  totalPrice     Int // 总价（元）
+  unitPrice      Int // 单价（元/㎡）
+  rooms          Int
+  halls          Int
+  bathrooms      Int
+  orientation    String // 南 / 南北 / 东 / 西 / 东南 / 西南
+  floor          Int
+  totalFloors    Int
+  buildYear      Int
+  propertyType   String // 商品房 / 房改房 / 经济适用房 / 公寓
+  decoration     String // 毛坯 / 简装 / 精装 / 豪装
+  status         String   @default("pending") // pending 待审核 | on_sale 在售 | signed 已签约 | offline 已下架
+  verifyStatus   String   @default("pending") // pending 待验真 | verified 已验真 | rejected 验真驳回
+  description    String   @default("")
+  imagesJson     String   @default("[]") // JSON: [{"name":"客厅","url":"/mock/..."}]
+  address        String
+  lng            Float
+  lat            Float
+  listedAt       DateTime?
+  soldAt         DateTime?
+  viewCount      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  isDeleted      Boolean  @default(false)
+
+  community Community  @relation(fields: [communityId], references: [id])
+  owner     User       @relation("ListingOwner", fields: [ownerId], references: [id])
+  agent     Agent      @relation(fields: [agentId], references: [id])
+  agency    Agency     @relation(fields: [agencyId], references: [id])
+  showings  Showing[]
+  contracts Contract[]
+
+  @@index([status])
+  @@index([communityId])
+  @@index([agentId])
+  @@index([totalPrice])
+  @@index([area])
+}
+
+/// 客户（买方/卖方）
+model Customer {
+  id              String    @id @default(cuid())
+  code            String    @unique // KH-000001
+  name            String
+  phone           String
+  type            String // buyer | seller
+  budgetMin       Int?
+  budgetMax       Int?
+  demand          String    @default("")
+  tagsJson        String    @default("[]")
+  agentId         String
+  agencyId        String
+  level           String    @default("B") // A | B | C
+  protectionUntil DateTime?
+  userId          String?
+  status          String    @default("following") // following 跟进中 | signed 已成交 | invalid 无效
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  isDeleted       Boolean   @default(false)
+
+  user         User?      @relation(fields: [userId], references: [id])
+  agent        Agent      @relation(fields: [agentId], references: [id])
+  agency       Agency     @relation(fields: [agencyId], references: [id])
+  showings     Showing[]
+  buyContracts Contract[] @relation("ContractBuyer")
+  sellContracts Contract[] @relation("ContractSeller")
+
+  @@index([agentId])
+  @@index([type])
+  @@index([level])
+  @@index([userId])
+}
+
+/// 带看记录
+model Showing {
+  id          String    @id @default(cuid())
+  code        String    @unique // DK202610280001
+  listingId   String
+  customerId  String
+  agentId     String
+  scheduledAt DateTime
+  actualAt    DateTime?
+  durationMin Int       @default(30)
+  status      String    @default("pending") // pending 待确认 | confirmed 已确认 | done 已完成 | cancelled 已取消
+  feedback    String?
+  rating      String? // 客户评级 A | B | C
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  isDeleted   Boolean   @default(false)
+
+  listing  HouseListing @relation(fields: [listingId], references: [id])
+  customer Customer     @relation(fields: [customerId], references: [id])
+  agent    Agent        @relation(fields: [agentId], references: [id])
+
+  @@index([agentId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+/// 合同模板
+model ContractTemplate {
+  id        String   @id @default(cuid())
+  name      String
+  version   String
+  content   String // 模板正文（含 {{占位符}}）
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  contracts Contract[]
+
+  @@unique([name, version])
+}
+
+/// 房屋买卖合同
+model Contract {
+  id                  String    @id @default(cuid())
+  code                String    @unique // HT2026000001
+  listingId           String
+  buyerCustomerId     String
+  sellerCustomerId    String
+  templateId          String
+  agentId             String
+  agencyId            String
+  amount              Int // 合同金额（元）
+  commissionRate      Float
+  commissionAmount    Int
+  depositAmount       Int       @default(0)
+  signStatus          String    @default("draft") // draft 草稿 | pending 待签署 | signed 已签署 | voided 已作废
+  signMethod          String? // esign_mock
+  esignNo             String? // 第三方合同编号（Mock）
+  contentSnapshot     String    @default("") // 签署时的合同正文快照
+  signedAt            DateTime?
+  voidedAt            DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  isDeleted           Boolean   @default(false)
+
+  listing        HouseListing         @relation(fields: [listingId], references: [id])
+  buyerCustomer  Customer             @relation("ContractBuyer", fields: [buyerCustomerId], references: [id])
+  sellerCustomer Customer             @relation("ContractSeller", fields: [sellerCustomerId], references: [id])
+  template       ContractTemplate     @relation(fields: [templateId], references: [id])
+  agent          Agent                @relation(fields: [agentId], references: [id])
+  agency         Agency               @relation(fields: [agencyId], references: [id])
+  progress       TransactionProgress[]
+  payments       PaymentRecord[]
+
+  @@index([signStatus])
+  @@index([listingId])
+  @@index([agentId])
+}
+
+/// 交易进度节点
+model TransactionProgress {
+  id          String    @id @default(cuid())
+  contractId  String
+  nodeType    String // sign 面签 | loan 贷款审批 | tax 缴税 | transfer 过户 | handover 交房
+  status      String    @default("todo") // todo 待办 | doing 进行中 | done 已完成
+  sortOrder   Int
+  plannedDate DateTime?
+  completedAt DateTime?
+  operatorId  String?
+  remark      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, nodeType])
+  @@index([status])
+}
+
+/// 交易资金记录（Demo：支付通道 Mock）
+model PaymentRecord {
+  id         String    @id @default(cuid())
+  contractId String
+  type       String // deposit 定金 | down_payment 首付 | balance 尾款 | commission 佣金
+  amount     Int
+  status     String    @default("unpaid") // unpaid 待支付 | paid 已支付 | refunded 已退款
+  tradeNo    String    @unique // Mock 交易流水号
+  paidAt     DateTime?
+  remark     String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+}
+
+/// 站内通知
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String // showing 带看 | contract 合同 | progress 交易进度 | system 系统
+  title     String
+  content   String
+  isRead    Boolean  @default(false)
+  bizType   String?
+  bizId     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+}
+
+/// 操作日志
+model OperationLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  targetType String
+  targetId   String?
+  detail     String   @default("")
+  ip         String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+/// 数据字典
+model DataDict {
+  id        String   @id @default(cuid())
+  category  String // orientation / decoration / property_type / listing_status / ...
+  key       String
+  label     String
+  value     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([category, key])
+  @@index([category])
+}
+
+/// 附件（委托协议、产权照片、合同文件等）
+model Attachment {
+  id         String   @id @default(cuid())
+  bizType    String // listing_agreement | property_cert | contract | avatar
+  bizId      String
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
+  uploadedBy String
+  createdAt  DateTime @default(now())
+
+  @@index([bizType, bizId])
+}

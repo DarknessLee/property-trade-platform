@@ -1,0 +1,78 @@
+import { test, type Page } from '@playwright/test';
+import { mkdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+/**
+ * 按角色/端批量截图（最终 UI + 最终种子）。
+ * 输出：docs/screenshots/，文件名 `序号-端-角色-页面.png`；每次覆盖，避免旧图混入。
+ * 运行：npm run screenshots（需先 db:reset 与 build）。
+ */
+
+const OUT_DIR = join(process.cwd(), 'docs', 'screenshots');
+mkdirSync(OUT_DIR, { recursive: true });
+
+async function shot(page: Page, name: string): Promise<void> {
+  await page.waitForLoadState('networkidle').catch(() => undefined);
+  await page.waitForTimeout(400);
+  await page.screenshot({ path: join(OUT_DIR, `${name}.png`), fullPage: true });
+}
+
+async function login(page: Page, phone: string): Promise<void> {
+  await page.goto('/login');
+  await page.getByTestId('login-phone').fill(phone);
+  await page.getByTestId('login-password').fill('123456');
+  await page.getByTestId('btn-login').click();
+  await page.waitForURL(/\/(portal|admin)/);
+  // 等待 AntD 成功提示自动消失，避免截图出现 toast
+  await page.waitForTimeout(3200);
+}
+
+test.describe('角色截图', () => {
+  test('01-登录页', async ({ page }) => {
+    await page.goto('/login');
+    await shot(page, '01-登录页');
+  });
+
+  test('02-C端-未登录-门户首页', async ({ page }) => {
+    await page.goto('/portal');
+    await shot(page, '02-C端-游客-门户首页');
+  });
+
+  test('03-C端-游客-房源列表', async ({ page }) => {
+    await page.goto('/portal/listings');
+    await shot(page, '03-C端-游客-房源列表');
+  });
+
+  test('04-C端-游客-房源详情', async ({ page }) => {
+    await page.goto('/portal/listings');
+    await page.locator('[data-testid^="listing-card-"]').first().click();
+    await page.getByTestId('listing-title').waitFor();
+    await shot(page, '04-C端-游客-房源详情');
+  });
+
+  test('05-C端-买方-个人中心', async ({ page }) => {
+    await login(page, '13800000040');
+    await page.goto('/portal/mine');
+    await shot(page, '05-C端-买方-个人中心');
+  });
+
+  test('06-B端-经纪人-工作台', async ({ page }) => {
+    await login(page, '13800000020');
+    await shot(page, '06-B端-经纪人-工作台');
+  });
+
+  test('07-B端-店长-工作台', async ({ page }) => {
+    await login(page, '13800000003');
+    await shot(page, '07-B端-店长-工作台');
+  });
+
+  test('08-B端-管理员-工作台', async ({ page }) => {
+    await login(page, '13800000001');
+    await shot(page, '08-B端-管理员-工作台');
+  });
+
+  test('09-B端-财务-工作台', async ({ page }) => {
+    await login(page, '13800000002');
+    await shot(page, '09-B端-财务-工作台');
+  });
+});
