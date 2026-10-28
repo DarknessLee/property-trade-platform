@@ -14,6 +14,11 @@ import CustomersPage from './pages/b/CustomersPage';
 import ShowingsPage from './pages/b/ShowingsPage';
 import ContractsPage from './pages/b/ContractsPage';
 import ProgressPage from './pages/b/ProgressPage';
+import AgenciesPage from './pages/b/AgenciesPage';
+import StatsPage from './pages/b/StatsPage';
+import LogsPage from './pages/b/LogsPage';
+import FinancePage from './pages/b/FinancePage';
+import UsersPage from './pages/b/UsersPage';
 import PlaceholderPage from './pages/b/PlaceholderPage';
 import PortalMapPage from './pages/c/MapPage';
 import { useAuth } from './auth/AuthContext';
@@ -52,10 +57,12 @@ export default function App(): JSX.Element {
         <Route path="showings" element={<ShowingsPage />} />
         <Route path="contracts" element={<ContractsPage />} />
         <Route path="progress" element={<ProgressPage />} />
-        <Route path="agencies" element={<PlaceholderPage title="门店与经纪人" planned="M4：门店组织架构、经纪人账号与角色分配" />} />
-        <Route path="stats" element={<PlaceholderPage title="业绩统计" planned="M4：成交量、带看量、成交金额看板" />} />
+        <Route path="agencies" element={<AgenciesPage />} />
+        <Route path="stats" element={<StatsPage />} />
+        <Route path="finance" element={<FinancePage />} />
         <Route path="audit" element={<AuditPage />} />
-        <Route path="logs" element={<PlaceholderPage title="操作日志" planned="M4：操作留痕查询" />} />
+        <Route path="logs" element={<LogsPage />} />
+        <Route path="users" element={<UsersPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

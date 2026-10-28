@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+﻿import { expect, test, type Page } from '@playwright/test';
 import dayjs from 'dayjs';
 
 /**
@@ -8,8 +8,9 @@ import dayjs from 'dayjs';
 
 const PASSWORD = '123456';
 const CUSTOMER_NAME = `E2E客户${Date.now() % 100000}`;
-const B2B_BOOK_DATE = dayjs().add(30, 'day').format('YYYY-MM-DD');
-const CUSTOMER_BOOK_DATE = dayjs().add(45, 'day').format('YYYY-MM-DD');
+const RUN_OFFSET = Math.floor(Math.random() * 500);
+const B2B_BOOK_DATE = dayjs().add(120 + RUN_OFFSET, 'day').format('YYYY-MM-DD');
+const CUSTOMER_BOOK_DATE = dayjs().add(620 + RUN_OFFSET, 'day').format('YYYY-MM-DD');
 
 async function fillBookingTime(page: Page, scope: string, date: string, time: string): Promise<void> {
   const container = page.locator(scope);
@@ -67,7 +68,7 @@ test.describe.serial('B 端客户与带看', () => {
   test('带看记录可确认并完成（含反馈）', async ({ page }) => {
     await login(page, '13800000020');
     await page.goto('/admin/showings');
-    const row = page.locator('.ant-table-row').first();
+    const row = page.locator('.ant-table-row').filter({ hasText: '待确认' }).first();
     await expect(row).toBeVisible({ timeout: 15000 });
     await row.getByRole('button', { name: '处理' }).click();
     const modal = page.locator('.ant-modal-content');

@@ -13,6 +13,7 @@ import {
   NodeIndexOutlined,
   TeamOutlined,
   UserOutlined,
+  WalletOutlined,
 } from '@ant-design/icons';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
@@ -38,10 +39,12 @@ const MENU_DEFS: MenuDef[] = [
   { key: '/admin/showings', label: '带看管理', icon: <CalendarOutlined />, roles: ['agent', 'store_manager', 'admin'] },
   { key: '/admin/contracts', label: '合同签约', icon: <FileTextOutlined />, roles: ['agent', 'store_manager', 'finance', 'admin'] },
   { key: '/admin/progress', label: '交易进度', icon: <NodeIndexOutlined />, roles: ['agent', 'store_manager', 'finance', 'admin'] },
+  { key: '/admin/finance', label: '资金核对', icon: <WalletOutlined />, roles: ['finance', 'admin'] },
   { key: '/admin/agencies', label: '门店与经纪人', icon: <BankOutlined />, roles: ['store_manager', 'admin'] },
   { key: '/admin/stats', label: '业绩统计', icon: <BarChartOutlined />, roles: ['store_manager', 'finance', 'admin'] },
   { key: '/admin/audit', label: '后台审核', icon: <AuditOutlined />, roles: ['admin'] },
   { key: '/admin/logs', label: '操作日志', icon: <HistoryOutlined />, roles: ['admin'] },
+  { key: '/admin/users', label: '账号权限', icon: <UserOutlined />, roles: ['admin'] },
 ];
 
 export default function AdminLayout(): JSX.Element {

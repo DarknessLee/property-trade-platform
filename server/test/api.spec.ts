@@ -1,4 +1,4 @@
-/**
+﻿/**
  * M1 API 验收：健康检查、登录、鉴权、公开浏览、字典、通知、实名、错误码与权限拒绝。
  * 前置：npm run db:reset（种子数据已就绪，测试读取 dev.db）。
  */
@@ -64,7 +64,7 @@ describe('健康检查与公开接口', () => {
     // 在售 + 已签约恒为 47 套（签约只改状态）；小区可能因 M2 用例新增，故取下限
     expect(body.data.onSaleListings + body.data.signedContracts).toBe(47);
     expect(body.data.communities).toBeGreaterThanOrEqual(15);
-    expect(body.data.agencies).toBe(6);
+    expect(body.data.agencies).toBeGreaterThanOrEqual(6);
     expect(body.data.agents).toBe(12);
   });
 

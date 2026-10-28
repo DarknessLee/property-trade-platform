@@ -23,14 +23,24 @@ const QUICK_ACTIONS = [
   { title: '客户跟进', desc: '维护客户档案与需求标签', path: '/admin/customers', icon: <TeamOutlined />, color: '#722ed1' },
 ];
 
+interface Overview {
+  listingCount: number;
+  onSaleCount: number;
+  customerCount: number;
+  showingCount: number;
+  signedContractCount: number;
+  dealAmount: number;
+  pendingVerifyCount: number;
+}
+
 export default function DashboardPage(): JSX.Element {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [stats, setStats] = useState<HomeStats | null>(null);
+  const [stats, setStats] = useState<Overview | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   useEffect(() => {
-    void apiGet<HomeStats>('/public/home').then(setStats).catch(() => setStats(null));
+    void apiGet<Overview>('/stats/overview').then(setStats).catch(() => setStats(null));
     void apiGet<{ items: NotificationItem[] }>('/notifications')
       .then((data) => setNotifications(data.items.slice(0, 6)))
       .catch(() => setNotifications([]));
@@ -49,10 +59,10 @@ export default function DashboardPage(): JSX.Element {
 
       <Row gutter={16}>
         {[
-          { title: '在售房源', value: stats?.onSaleListings ?? 0, suffix: '套', icon: <HomeOutlined /> },
-          { title: '合作小区', value: stats?.communities ?? 0, suffix: '个', icon: <TeamOutlined /> },
-          { title: '累计成交', value: stats?.signedContracts ?? 0, suffix: '单', icon: <FileTextOutlined /> },
-          { title: '认证经纪人', value: stats?.agents ?? 0, suffix: '位', icon: <TeamOutlined /> },
+          { title: '我的房源', value: stats?.listingCount ?? 0, suffix: '套', icon: <HomeOutlined /> },
+          { title: '在售房源', value: stats?.onSaleCount ?? 0, suffix: '套', icon: <HomeOutlined /> },
+          { title: '成交单量', value: stats?.signedContractCount ?? 0, suffix: '单', icon: <FileTextOutlined /> },
+          { title: '成交金额', value: Math.round((stats?.dealAmount ?? 0) / 10000), suffix: '万', icon: <FileTextOutlined /> },
         ].map((item) => (
           <Col xs={12} md={6} key={item.title}>
             <Card>

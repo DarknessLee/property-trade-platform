@@ -147,4 +147,48 @@ test.describe('角色截图', () => {
     await page.locator('[data-testid="my-contracts-table"] .ant-table-row').first().waitFor();
     await shot(page, '19-C端-买方-我的合同');
   });
+
+  test('20-B端-店长-门店与经纪人', async ({ page }) => {
+    await login(page, '13800000003');
+    await page.goto('/admin/agencies');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '20-B端-店长-门店与经纪人');
+  });
+
+  test('21-B端-店长-业绩统计', async ({ page }) => {
+    await login(page, '13800000003');
+    await page.goto('/admin/stats');
+    await page.getByTestId('trend-chart').waitFor();
+    await page.waitForTimeout(600);
+    await shot(page, '21-B端-店长-业绩统计');
+  });
+
+  test('22-B端-管理员-实名审核', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/audit');
+    await page.getByRole('tab', { name: /实名认证/ }).click();
+    await page.waitForTimeout(600);
+    await shot(page, '22-B端-管理员-实名审核');
+  });
+
+  test('23-B端-管理员-操作日志', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/logs');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '23-B端-管理员-操作日志');
+  });
+
+  test('24-B端-财务-资金核对', async ({ page }) => {
+    await login(page, '13800000002');
+    await page.goto('/admin/finance');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '24-B端-财务-资金核对');
+  });
+
+  test('25-B端-管理员-账号权限', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/users');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '25-B端-管理员-账号权限');
+  });
 });

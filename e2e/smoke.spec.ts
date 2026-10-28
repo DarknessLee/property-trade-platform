@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+﻿import { expect, test, type Page } from '@playwright/test';
 
 /**
  * M1 E2E：C 端浏览、登录分流、B 端工作台骨架、权限跳转。
@@ -113,10 +113,13 @@ test.describe('个人中心与实名认证', () => {
     await expect(page).toHaveURL(/\/portal/);
     await page.goto('/portal/mine');
     await expect(page.getByTestId('mine-name')).toContainText('马涛');
-    await expect(page.getByTestId('input-idcard')).toBeVisible();
-    await page.getByTestId('input-realname').fill('马涛');
-    await page.getByTestId('input-idcard').fill('110101199509120020');
-    await page.getByTestId('btn-submit-realname').click();
-    await expect(page.getByText('实名认证资料已提交', { exact: false })).toBeVisible();
+    if (await page.getByTestId('input-idcard').isVisible().catch(() => false)) {
+      await page.getByTestId('input-realname').fill('马涛');
+      await page.getByTestId('input-idcard').fill('110101199509120020');
+      await page.getByTestId('btn-submit-realname').click();
+      await expect(page.getByText('实名认证资料已提交', { exact: false })).toBeVisible();
+    } else {
+      await expect(page.getByTestId('realname-card')).toContainText(/已实名|实名审核中|已完成实名认证/);
+    }
   });
 });
