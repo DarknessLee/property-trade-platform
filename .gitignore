@@ -1,0 +1,43 @@
+# 依赖与构建产物
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# 本地数据库与种子产物
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+prisma/dev.db*
+data/
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# 运行时与日志
+logs/
+*.log
+tmp/
+.tmp/
+
+# 测试与截图中间产物（E2E 生成目录不入库；精选截图在 docs/screenshots）
+test-results/
+playwright-report/
+blob-report/
+.trace/
+
+# 编辑器/系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 软著材料生成中间件
+artifacts/
