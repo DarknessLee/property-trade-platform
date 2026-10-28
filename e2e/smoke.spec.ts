@@ -99,8 +99,8 @@ test.describe('B 端工作台骨架', () => {
 
   test('待建设模块显示交付计划', async ({ page }) => {
     await loginAs(page, '13800000020');
-    await page.getByText('房源管理').first().click();
-    await expect(page.getByTestId('admin-page-title')).toHaveText('房源管理');
+    await page.getByText('客户管理').first().click();
+    await expect(page.getByTestId('admin-page-title')).toHaveText('客户管理');
     await expect(page.getByText('建设中')).toBeVisible();
   });
 });

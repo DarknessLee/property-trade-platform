@@ -14,6 +14,7 @@ export interface AuthUser {
   role: Role;
   name: string;
   phone: string;
+  agencyId?: string | null;
 }
 
 /** 取当前登录用户（由 JwtAuthGuard 注入 request.user） */

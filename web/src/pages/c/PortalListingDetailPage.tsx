@@ -1,11 +1,13 @@
-import { Alert, Avatar, Button, Card, Col, Descriptions, Divider, Image, Row, Space, Spin, Tag, Typography, App as AntdApp } from 'antd';
+import { Alert, Avatar, Button, Card, Col, Descriptions, Divider, Form, Image, Row, Select, Space, Spin, Switch, Tag, Typography, App as AntdApp } from 'antd';
 import { ArrowLeftOutlined, EnvironmentOutlined, PhoneOutlined, ScheduleOutlined, UserOutlined } from '@ant-design/icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { apiGet } from '../../api/client';
 import type { Listing } from '../../types';
 import { toWan } from '../../components/ListingCard';
+import PriceChart from '../../components/PriceChart';
 import { useAuth } from '../../auth/AuthContext';
+import { estimateTax } from '../../utils/format';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -18,6 +20,10 @@ export default function PortalListingDetailPage(): JSX.Element {
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
+  const [firstHome, setFirstHome] = useState(true);
+  const [overTwoYears, setOverTwoYears] = useState(true);
+  const [onlyHomeOverFive, setOnlyHomeOverFive] = useState(false);
+
   useEffect(() => {
     setLoading(true);
     setNotFound(false);
@@ -26,6 +32,17 @@ export default function PortalListingDetailPage(): JSX.Element {
       .catch(() => setNotFound(true))
       .finally(() => setLoading(false));
   }, [id]);
+
+  const tax = useMemo(() => {
+    if (!listing) return null;
+    return estimateTax({
+      totalPrice: listing.totalPrice,
+      area: listing.area,
+      firstHome,
+      overTwoYears,
+      onlyHomeOverFive,
+    });
+  }, [listing, firstHome, overTwoYears, onlyHomeOverFive]);
 
   if (loading) {
     return (
@@ -45,6 +62,8 @@ export default function PortalListingDetailPage(): JSX.Element {
   }
 
   const images = listing.images.length > 0 ? listing.images : [{ name: '房源图', url: '/mock/listings/1.svg' }];
+  const priceContext = listing.priceContext;
+  const isBelowAvg = priceContext ? listing.unitPrice < priceContext.communityAvgUnitPrice : false;
 
   return (
     <div className="page-section" style={{ paddingTop: 20, paddingBottom: 48 }}>
@@ -66,6 +85,7 @@ export default function PortalListingDetailPage(): JSX.Element {
                   <Tag>{listing.propertyType}</Tag>
                   <Tag>{listing.buildYear} 年建</Tag>
                   <Tag>房源编号 {listing.code}</Tag>
+                  {isBelowAvg && <Tag color="red">低于小区均价</Tag>}
                 </Space>
                 <div style={{ marginTop: 12, color: '#6b7280' }}>
                   <EnvironmentOutlined /> {listing.community.district} · {listing.community.name} · {listing.address}
@@ -76,7 +96,7 @@ export default function PortalListingDetailPage(): JSX.Element {
                   <span style={{ color: '#f5222d', fontSize: 34, fontWeight: 700 }}>{toWan(listing.totalPrice)}</span>
                   <span style={{ color: '#f5222d', fontSize: 16 }}> 万</span>
                 </div>
-                <Text type="secondary">{Math.round(listing.unitPrice)} 元/㎡</Text>
+                <Text type="secondary">{Math.round(listing.unitPrice).toLocaleString()} 元/㎡</Text>
               </div>
             </div>
 
@@ -121,9 +141,86 @@ export default function PortalListingDetailPage(): JSX.Element {
             <Title level={5}>房源描述</Title>
             <Paragraph style={{ color: '#4b5563', lineHeight: 1.9 }}>{listing.description}</Paragraph>
           </Card>
+
+          {priceContext && (
+            <Card title="同小区价格参考" style={{ marginTop: 16 }} data-testid="price-context-card">
+              <Row gutter={16} style={{ marginBottom: 8 }}>
+                <Col span={8}>
+                  <div style={{ color: '#8a9099', fontSize: 12 }}>本房源单价</div>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: isBelowAvg ? '#52c41a' : '#f5222d' }}>
+                    {listing.unitPrice.toLocaleString()} 元/㎡
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div style={{ color: '#8a9099', fontSize: 12 }}>小区在售均价</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{priceContext.communityAvgUnitPrice.toLocaleString()} 元/㎡</div>
+                </Col>
+                <Col span={8}>
+                  <div style={{ color: '#8a9099', fontSize: 12 }}>区域在售均价</div>
+                  <div style={{ fontSize: 20, fontWeight: 700 }}>{priceContext.districtAvgUnitPrice.toLocaleString()} 元/㎡</div>
+                </Col>
+              </Row>
+              <PriceChart
+                items={priceContext.sameCommunity}
+                currentId={listing.id}
+                height={220}
+              />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                柱状图为同小区在售房源单价对比（灰色/蓝色代表不同房源，深色为本房源）；数据来自平台真实挂牌，仅作参考。
+              </Text>
+            </Card>
+          )}
         </Col>
 
         <Col xs={24} lg={8}>
+          <Card title="税费估算" style={{ marginBottom: 16 }} data-testid="tax-card">
+            <Form layout="vertical" size="small">
+              <Row gutter={8}>
+                <Col span={8}>
+                  <Form.Item label="首套/二套">
+                    <Select
+                      value={firstHome ? 'first' : 'second'}
+                      onChange={(value) => setFirstHome(value === 'first')}
+                      options={[
+                        { value: 'first', label: '首套' },
+                        { value: 'second', label: '二套' },
+                      ]}
+                      data-testid="tax-first-home"
+                    />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="满两年">
+                    <Switch checked={overTwoYears} onChange={setOverTwoYears} data-testid="tax-over-two" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item label="满五唯一">
+                    <Switch checked={onlyHomeOverFive} onChange={setOnlyHomeOverFive} data-testid="tax-only-five" />
+                  </Form.Item>
+                </Col>
+              </Row>
+            </Form>
+            {tax && (
+              <>
+                <Descriptions column={1} size="small" bordered>
+                  <Descriptions.Item label="契税">{tax.deedTax.toLocaleString()} 元</Descriptions.Item>
+                  <Descriptions.Item label="增值税">{tax.vat === 0 ? '免征' : `${tax.vat.toLocaleString()} 元`}</Descriptions.Item>
+                  <Descriptions.Item label="个人所得税">{tax.incomeTax === 0 ? '免征' : `${tax.incomeTax.toLocaleString()} 元`}</Descriptions.Item>
+                  <Descriptions.Item label="合计估算">
+                    <Text strong style={{ color: '#f5222d', fontSize: 16 }}>{tax.total.toLocaleString()} 元</Text>
+                  </Descriptions.Item>
+                </Descriptions>
+                <div style={{ color: '#8a9099', fontSize: 12, marginTop: 8, lineHeight: 1.8 }}>
+                  {tax.notes.map((note) => (
+                    <div key={note}>· {note}</div>
+                  ))}
+                  <div>· 以上为演示简化规则，实际税费以不动产登记与税务部门核定为准。</div>
+                </div>
+              </>
+            )}
+          </Card>
+
           <Card title="小区信息" style={{ marginBottom: 16 }}>
             <Descriptions column={1} size="small">
               <Descriptions.Item label="小区名称">{listing.community.name}</Descriptions.Item>
@@ -132,17 +229,22 @@ export default function PortalListingDetailPage(): JSX.Element {
               <Descriptions.Item label="容积率">{listing.community.plotRatio}</Descriptions.Item>
               <Descriptions.Item label="绿化率">{(listing.community.greenRate * 100).toFixed(0)}%</Descriptions.Item>
               <Descriptions.Item label="物业费">{listing.community.propertyFee} 元/㎡/月</Descriptions.Item>
+              <Descriptions.Item label="位置">
+                <a onClick={() => navigate('/portal/map')} style={{ cursor: 'pointer' }}>
+                  在地图找房中查看 <EnvironmentOutlined />
+                </a>
+              </Descriptions.Item>
             </Descriptions>
           </Card>
 
           <Card title="专属经纪人" data-testid="listing-agent-card">
             <Space align="start" size={12}>
               <Avatar size={48} style={{ background: '#1677ff' }}>
-                {listing.agent?.user.name.slice(0, 1) ?? '房'}
+                {listing.agent?.user?.name.slice(0, 1) ?? '房'}
               </Avatar>
               <div>
                 <div style={{ fontWeight: 600, fontSize: 15 }}>
-                  {listing.agent?.user.name ?? '平台经纪人'} <Tag color="gold">已实名</Tag>
+                  {listing.agent?.user?.name ?? '平台经纪人'} <Tag color="gold">已实名</Tag>
                 </div>
                 <div style={{ color: '#6b7280', fontSize: 12 }}>{listing.agent?.agency.name}</div>
                 <div style={{ color: '#6b7280', fontSize: 12 }}>
@@ -164,7 +266,7 @@ export default function PortalListingDetailPage(): JSX.Element {
                     navigate('/login');
                     return;
                   }
-                  message.info('预约带看将在 M3 阶段开放（本阶段仅完成房源浏览与账户体系）');
+                  message.info('预约带看将在 M3 阶段开放（本阶段完成房源域与浏览体验）');
                 }}
                 data-testid="btn-book-showing"
               >

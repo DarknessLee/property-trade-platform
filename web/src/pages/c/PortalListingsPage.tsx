@@ -1,5 +1,5 @@
 import { Card, Col, Empty, Input, Pagination, Row, Select, Space, Spin, Typography } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { EnvironmentOutlined, SearchOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiGet } from '../../api/client';
@@ -24,11 +24,36 @@ const ROOM_OPTIONS = [
   { label: '3 室', value: '3' },
   { label: '4 室及以上', value: '4' },
 ];
+const AREA_OPTIONS = [
+  { label: '不限面积', value: '' },
+  { label: '60㎡ 以下', value: '0-60' },
+  { label: '60-90㎡', value: '60-90' },
+  { label: '90-120㎡', value: '90-120' },
+  { label: '120-150㎡', value: '120-150' },
+  { label: '150㎡ 以上', value: '150-' },
+];
+const ORIENTATION_OPTIONS = [
+  { label: '不限朝向', value: '' },
+  { label: '南', value: '南' },
+  { label: '南北', value: '南北' },
+  { label: '东南', value: '东南' },
+  { label: '西南', value: '西南' },
+  { label: '东', value: '东' },
+  { label: '西', value: '西' },
+];
+const BUILD_YEAR_OPTIONS = [
+  { label: '不限楼龄', value: '' },
+  { label: '5 年内', value: 'last5' },
+  { label: '10 年内', value: 'last10' },
+  { label: '15 年内', value: 'last15' },
+];
 const SORT_OPTIONS = [
   { label: '默认排序', value: 'default' },
   { label: '总价从低到高', value: 'price_asc' },
   { label: '总价从高到低', value: 'price_desc' },
 ];
+
+const CURRENT_YEAR = new Date().getFullYear();
 
 export default function PortalListingsPage(): JSX.Element {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -41,6 +66,9 @@ export default function PortalListingsPage(): JSX.Element {
   const keyword = searchParams.get('keyword') ?? '';
   const rooms = searchParams.get('rooms') ?? '';
   const price = searchParams.get('price') ?? '';
+  const area = searchParams.get('area') ?? '';
+  const orientation = searchParams.get('orientation') ?? '';
+  const buildYear = searchParams.get('buildYear') ?? '';
   const sort = searchParams.get('sort') ?? 'default';
   const page = Number(searchParams.get('page') ?? '1');
 
@@ -55,6 +83,21 @@ export default function PortalListingsPage(): JSX.Element {
     };
   }, [price]);
 
+  const areaParams = useMemo(() => {
+    if (!area) return {};
+    const [min, max] = area.split('-');
+    return {
+      ...(min ? { minArea: min } : {}),
+      ...(max ? { maxArea: max } : {}),
+    };
+  }, [area]);
+
+  const buildYearParams = useMemo(() => {
+    if (!buildYear) return {};
+    const yearsAgo = buildYear === 'last5' ? 5 : buildYear === 'last10' ? 10 : 15;
+    return { buildYearMin: String(CURRENT_YEAR - yearsAgo) };
+  }, [buildYear]);
+
   useEffect(() => {
     setLoading(true);
     void apiGet<{ items: Listing[]; total: number }>('/public/listings', {
@@ -62,10 +105,13 @@ export default function PortalListingsPage(): JSX.Element {
         district: district || undefined,
         keyword: keyword || undefined,
         rooms: rooms || undefined,
+        orientation: orientation || undefined,
         sort,
         page,
         pageSize: 12,
         ...priceParams,
+        ...areaParams,
+        ...buildYearParams,
       },
     })
       .then((data) => {
@@ -77,7 +123,7 @@ export default function PortalListingsPage(): JSX.Element {
         setTotal(0);
       })
       .finally(() => setLoading(false));
-  }, [district, keyword, rooms, sort, page, priceParams]);
+  }, [district, keyword, rooms, orientation, sort, page, priceParams, areaParams, buildYearParams]);
 
   const updateParam = (key: string, value: string): void => {
     const next = new URLSearchParams(searchParams);
@@ -115,6 +161,27 @@ export default function PortalListingsPage(): JSX.Element {
             data-testid="filter-rooms"
           />
           <Select
+            style={{ width: 140 }}
+            value={area}
+            onChange={(value) => updateParam('area', value)}
+            options={AREA_OPTIONS}
+            data-testid="filter-area"
+          />
+          <Select
+            style={{ width: 130 }}
+            value={orientation}
+            onChange={(value) => updateParam('orientation', value)}
+            options={ORIENTATION_OPTIONS}
+            data-testid="filter-orientation"
+          />
+          <Select
+            style={{ width: 130 }}
+            value={buildYear}
+            onChange={(value) => updateParam('buildYear', value)}
+            options={BUILD_YEAR_OPTIONS}
+            data-testid="filter-build-year"
+          />
+          <Select
             style={{ width: 160 }}
             value={sort}
             onChange={(value) => updateParam('sort', value)}
@@ -122,7 +189,7 @@ export default function PortalListingsPage(): JSX.Element {
             data-testid="filter-sort"
           />
           <Input
-            style={{ width: 260 }}
+            style={{ width: 240 }}
             placeholder="搜索小区 / 关键词"
             prefix={<SearchOutlined />}
             value={keywordDraft}
@@ -139,7 +206,16 @@ export default function PortalListingsPage(): JSX.Element {
         <Title level={4} style={{ margin: 0 }}>
           在售房源 <Text type="secondary" style={{ fontSize: 14, fontWeight: 400 }}>共 {total} 套</Text>
         </Title>
-        <Text type="secondary" style={{ fontSize: 12 }}>房源信息经业主实名委托 · 演示数据</Text>
+        <Space>
+          <Text
+            style={{ color: '#1677ff', cursor: 'pointer' }}
+            onClick={() => navigate('/portal/map')}
+            data-testid="link-map"
+          >
+            <EnvironmentOutlined /> 地图找房
+          </Text>
+          <Text type="secondary" style={{ fontSize: 12 }}>房源信息经业主实名委托 · 演示数据</Text>
+        </Space>
       </div>
 
       <Spin spinning={loading}>

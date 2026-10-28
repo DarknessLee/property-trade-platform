@@ -18,6 +18,7 @@ model User {
   passwordHash String
   name         String
   role         String // buyer | seller | agent | store_manager | finance | admin
+  agencyId     String? // 员工归属门店/机构（店长/财务/经纪人用于数据范围）
   email        String?
   avatar       String?
   status       String   @default("active") // active | disabled
@@ -25,6 +26,7 @@ model User {
   updatedAt    DateTime @updatedAt
   isDeleted    Boolean  @default(false)
 
+  agency       Agency?        @relation(fields: [agencyId], references: [id])
   realNameAuth RealNameAuth?
   agent        Agent?
   listings     HouseListing[]     @relation("ListingOwner")
@@ -33,6 +35,7 @@ model User {
   logs         OperationLog[]
 
   @@index([role])
+  @@index([agencyId])
 }
 
 /// 实名认证（演示环境：证件号脱敏存储 + 哈希去重，不做真实核验）
@@ -67,6 +70,7 @@ model Agency {
   children Agency[] @relation("AgencyTree")
 
   agents    Agent[]
+  users     User[]
   listings  HouseListing[]
   customers Customer[]
   contracts Contract[]

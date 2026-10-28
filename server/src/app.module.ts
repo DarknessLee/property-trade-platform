@@ -8,6 +8,11 @@ import { AuthModule } from './modules/auth/auth.module';
 import { DictsModule } from './modules/dicts/dicts.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PublicModule } from './modules/public/public.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { ListingsModule } from './modules/listings/listings.module';
+import { CommunitiesModule } from './modules/communities/communities.module';
+import { OptionsModule } from './modules/options/options.module';
+import { AttachmentsModule } from './modules/attachments/attachments.module';
 
 export const JWT_SECRET = process.env.JWT_SECRET ?? 'property-trade-platform-demo-secret-2026';
 
@@ -19,10 +24,15 @@ export const JWT_SECRET = process.env.JWT_SECRET ?? 'property-trade-platform-dem
       signOptions: { expiresIn: '12h' },
     }),
     PrismaModule,
+    AuditModule,
     AuthModule,
     DictsModule,
     NotificationsModule,
     PublicModule,
+    ListingsModule,
+    CommunitiesModule,
+    OptionsModule,
+    AttachmentsModule,
   ],
   controllers: [HealthController],
   providers: [

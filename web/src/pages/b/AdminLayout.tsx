@@ -1,5 +1,6 @@
 import { Avatar, Badge, Dropdown, Layout, Menu, Space, Tag, Typography } from 'antd';
 import {
+  ApartmentOutlined,
   AuditOutlined,
   BankOutlined,
   BarChartOutlined,
@@ -32,6 +33,7 @@ interface MenuDef {
 const MENU_DEFS: MenuDef[] = [
   { key: '/admin', label: '工作台', icon: <DashboardOutlined />, roles: ['agent', 'store_manager', 'finance', 'admin'] },
   { key: '/admin/listings', label: '房源管理', icon: <HomeOutlined />, roles: ['agent', 'store_manager', 'admin'] },
+  { key: '/admin/communities', label: '小区字典', icon: <ApartmentOutlined />, roles: ['admin'] },
   { key: '/admin/customers', label: '客户管理', icon: <TeamOutlined />, roles: ['agent', 'store_manager', 'admin'] },
   { key: '/admin/showings', label: '带看管理', icon: <CalendarOutlined />, roles: ['agent', 'store_manager', 'admin'] },
   { key: '/admin/contracts', label: '合同签约', icon: <FileTextOutlined />, roles: ['agent', 'store_manager', 'finance', 'admin'] },

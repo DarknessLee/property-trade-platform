@@ -5,7 +5,7 @@
 - **软件全称**：房产交易数字化协同平台 V1.0（演示环境）
 - **产品形态**：Web 前后端分离（React SPA + NestJS API），PC 优先、响应式兼容移动浏览器
 - **数据层**：SQLite（Prisma，可切 PostgreSQL）；外部系统全部本地 Mock
-- **当前阶段**：M1 契约与数据基座（M0 已确认）
+- **当前阶段**：M2 用户中心 + 房源域（M0/M1 已确认并验收）
 
 ## 技术栈
 
@@ -64,10 +64,10 @@ npm run dev          # 并行启动 API(3000) 与 Web(5173)
 | --- | --- |
 | `npm run db:reset` | 数据库重建 + 种子 + 数据质量校验（49 项） |
 | `npm run build` | 前后端构建 + 类型检查 |
-| `npm run test:api` | API 验收（18 项，M1） |
-| `npm run test:e2e` | UI E2E（Playwright） |
+| `npm run test:api` | API 验收（44 项：认证/公开浏览/房源状态机/权限/小区/附件） |
+| `npm run test:e2e` | UI E2E（19 条，含录入→验真→审核→上架全流程、地图、税费） |
 | `npm run verify` | db:reset + build + test:api + test:e2e 全量 |
-| `npm run screenshots` | 按角色截图到 `docs/screenshots/` |
+| `npm run screenshots` | 按角色截图到 `docs/screenshots/`（14 张） |
 
 ## Mock 与合规说明
 
@@ -84,6 +84,8 @@ npm run dev          # 并行启动 API(3000) 与 Web(5173)
 | [docs/02-接口契约.md](docs/02-接口契约.md) | 统一响应、错误码、字段级接口、状态机 |
 | [docs/03-数据模型与种子.md](docs/03-数据模型与种子.md) | 17 张表、种子分布、49 项校验 |
 | [docs/04-权限矩阵.md](docs/04-权限矩阵.md) | 角色 × 模块、菜单可见性、后端兜底 |
+| [docs/05-M1-验收报告.md](docs/05-M1-验收报告.md) | M1 契约与数据基座验收（49 项校验 / API 18 / E2E 12） |
+| [docs/06-M2-验收报告.md](docs/06-M2-验收报告.md) | M2 用户中心 + 房源域验收（API 44 / E2E 19 / 截图 14） |
 | [STATUS.md](STATUS.md) | 当前状态与下一步 |
 | [DECISIONS.md](DECISIONS.md) | 关键决策记录 |
 | [PLAN-MATRIX.md](PLAN-MATRIX.md) | 方案要求 vs 实现状态 |

@@ -3,9 +3,55 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { Public } from '../../common/decorators';
 import { ERROR_CODES } from '../../common/constants';
 
-function parseImages(json: string): Array<{ name: string; url: string }> {
+interface ListingImage {
+  name: string;
+  url: string;
+}
+
+interface CommunityLite {
+  id: string;
+  name: string;
+  district: string;
+  businessArea: string;
+  address: string;
+  buildYear: number;
+  plotRatio: number;
+  greenRate: number;
+  propertyFee: number;
+  lng: number;
+  lat: number;
+}
+
+interface ListingRow {
+  id: string;
+  code: string;
+  title: string;
+  area: number;
+  totalPrice: number;
+  unitPrice: number;
+  rooms: number;
+  halls: number;
+  bathrooms: number;
+  orientation: string;
+  floor: number;
+  totalFloors: number;
+  buildYear: number;
+  propertyType: string;
+  decoration: string;
+  status: string;
+  verifyStatus: string;
+  description: string;
+  imagesJson: string;
+  address: string;
+  listedAt: Date | null;
+  viewCount: number;
+  community: CommunityLite;
+  agent: { id: string; user: { name: string }; agency: { id: string; name: string; phone: string } };
+}
+
+function parseImages(json: string): ListingImage[] {
   try {
-    return JSON.parse(json) as Array<{ name: string; url: string }>;
+    return JSON.parse(json) as ListingImage[];
   } catch {
     return [];
   }
@@ -43,10 +89,12 @@ export class PublicController {
     @Query('maxArea') maxArea?: string,
     @Query('orientation') orientation?: string,
     @Query('decoration') decoration?: string,
+    @Query('buildYearMin') buildYearMin?: string,
+    @Query('buildYearMax') buildYearMax?: string,
     @Query('sort') sort?: string,
     @Query('page') page = '1',
     @Query('pageSize') pageSize = '12',
-  ): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
+  ): Promise<{ items: Record<string, unknown>[]; total: number; page: number; pageSize: number }> {
     const pageNum = Math.max(1, Number(page) || 1);
     const size = Math.min(60, Math.max(1, Number(pageSize) || 12));
 
@@ -66,6 +114,12 @@ export class PublicController {
       where.area = {
         ...(minArea ? { gte: Number(minArea) } : {}),
         ...(maxArea ? { lte: Number(maxArea) } : {}),
+      };
+    }
+    if (buildYearMin || buildYearMax) {
+      where.buildYear = {
+        ...(buildYearMin ? { gte: Number(buildYearMin) } : {}),
+        ...(buildYearMax ? { lte: Number(buildYearMax) } : {}),
       };
     }
     if (keyword) {
@@ -95,30 +149,91 @@ export class PublicController {
     ]);
 
     return {
-      items: rows.map((row) => this.toListing(row)),
+      items: rows.map((row) => this.toListing(row as unknown as ListingRow)),
       total,
       page: pageNum,
       pageSize: size,
     };
   }
 
-  /** 房源详情（公开） */
+  /** 地图找房：房源点位（公开；声明在 :id 之前避免路由冲突） */
+  @Public()
+  @Get('listings/map')
+  async mapPoints(
+    @Query('district') district?: string,
+  ): Promise<Array<{ id: string; title: string; totalPrice: number; area: number; rooms: number; lng: number; lat: number; district: string; communityName: string }>> {
+    const rows = await this.prisma.houseListing.findMany({
+      where: { status: 'on_sale', isDeleted: false, ...(district ? { community: { district } } : {}) },
+      select: {
+        id: true,
+        title: true,
+        totalPrice: true,
+        area: true,
+        rooms: true,
+        lng: true,
+        lat: true,
+        community: { select: { name: true, district: true } },
+      },
+      take: 200,
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      totalPrice: row.totalPrice,
+      area: row.area,
+      rooms: row.rooms,
+      lng: row.lng,
+      lat: row.lat,
+      district: row.community.district,
+      communityName: row.community.name,
+    }));
+  }
+
+  /** 房源详情（公开，含小区/区域价格参考） */
   @Public()
   @Get('listings/:id')
-  async listingDetail(@Param('id') id: string): Promise<unknown> {
+  async listingDetail(@Param('id') id: string): Promise<Record<string, unknown>> {
     const row = await this.prisma.houseListing.findFirst({
       where: { id, isDeleted: false },
       include: { community: true, agent: { include: { user: true, agency: true } } },
     });
     if (!row) throw new NotFoundException({ code: ERROR_CODES.NOT_FOUND, message: '房源不存在或已下架' });
     await this.prisma.houseListing.update({ where: { id }, data: { viewCount: { increment: 1 } } });
-    return this.toListing(row);
+
+    const [communityRows, districtRows] = await Promise.all([
+      this.prisma.houseListing.findMany({
+        where: { communityId: row.communityId, status: 'on_sale', isDeleted: false },
+        select: { id: true, title: true, area: true, totalPrice: true, unitPrice: true },
+        orderBy: { unitPrice: 'asc' },
+        take: 8,
+      }),
+      this.prisma.houseListing.findMany({
+        where: { status: 'on_sale', isDeleted: false, community: { district: row.community.district } },
+        select: { unitPrice: true },
+      }),
+    ]);
+    const communityAvgUnitPrice = communityRows.length
+      ? Math.round(communityRows.reduce((sum, item) => sum + item.unitPrice, 0) / communityRows.length)
+      : row.unitPrice;
+    const districtAvgUnitPrice = districtRows.length
+      ? Math.round(districtRows.reduce((sum, item) => sum + item.unitPrice, 0) / districtRows.length)
+      : row.unitPrice;
+
+    return {
+      ...this.toListing(row as unknown as ListingRow),
+      priceContext: {
+        communityAvgUnitPrice,
+        districtAvgUnitPrice,
+        communityOnSaleCount: communityRows.length,
+        sameCommunity: communityRows,
+      },
+    };
   }
 
   /** 小区列表（公开） */
   @Public()
   @Get('communities')
-  async communities(): Promise<unknown[]> {
+  async communities(): Promise<Record<string, unknown>[]> {
     const rows = await this.prisma.community.findMany({
       where: { isDeleted: false },
       orderBy: [{ district: 'asc' }, { name: 'asc' }],
@@ -140,32 +255,7 @@ export class PublicController {
     }));
   }
 
-  private toListing(row: {
-    id: string;
-    code: string;
-    title: string;
-    area: number;
-    totalPrice: number;
-    unitPrice: number;
-    rooms: number;
-    halls: number;
-    bathrooms: number;
-    orientation: string;
-    floor: number;
-    totalFloors: number;
-    buildYear: number;
-    propertyType: string;
-    decoration: string;
-    status: string;
-    verifyStatus: string;
-    description: string;
-    imagesJson: string;
-    address: string;
-    listedAt: Date | null;
-    viewCount: number;
-    community: { id: string; name: string; district: string; businessArea: string; address: string; buildYear: number; plotRatio: number; greenRate: number; propertyFee: number; lng: number; lat: number };
-    agent: { id: string; user: { name: string }; agency: { id: string; name: string; phone: string } };
-  }): unknown {
+  private toListing(row: ListingRow): Record<string, unknown> {
     return {
       id: row.id,
       code: row.code,

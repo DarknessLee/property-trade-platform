@@ -190,13 +190,13 @@ async function main(): Promise<void> {
     data: { ...commonUser, phone: '13800000001', name: '平台管理员', role: 'admin' },
   });
   const finance = await prisma.user.create({
-    data: { ...commonUser, phone: '13800000002', name: '财务专员·邱丽', role: 'finance' },
+    data: { ...commonUser, phone: '13800000002', name: '财务专员·邱丽', role: 'finance', agencyId: hq.id },
   });
   const managerNames = ['店长·赵敏', '店长·钱峰', '店长·孙莉', '店长·李强', '店长·周慧'];
   const managers = [];
   for (let i = 0; i < stores.length; i += 1) {
     const manager = await prisma.user.create({
-      data: { ...commonUser, phone: `1380000000${i + 3}`, name: managerNames[i], role: 'store_manager' },
+      data: { ...commonUser, phone: `1380000000${i + 3}`, name: managerNames[i], role: 'store_manager', agencyId: stores[i].id },
     });
     managers.push(manager);
   }
@@ -248,6 +248,7 @@ async function main(): Promise<void> {
   const agents = [];
   for (let i = 0; i < agentUsers.length; i += 1) {
     const store = stores[i % stores.length];
+    await prisma.user.update({ where: { id: agentUsers[i].id }, data: { agencyId: store.id } });
     const agent = await prisma.agent.create({
       data: {
         userId: agentUsers[i].id,
@@ -262,9 +263,18 @@ async function main(): Promise<void> {
   }
 
   // ---------- 小区 ----------
+  // 各区域基准坐标（虚构城市「江州市」，用于地图找房展示）
+  const DISTRICT_COORDS: Record<string, { lng: number; lat: number }> = {
+    城东区: { lng: 121.445, lat: 31.215 },
+    城西区: { lng: 121.335, lat: 31.205 },
+    高新区: { lng: 121.44, lat: 31.125 },
+    滨江区: { lng: 121.395, lat: 31.085 },
+    世纪城区: { lng: 121.35, lat: 31.15 },
+  };
   const communities = [];
   for (let i = 0; i < COMMUNITY_DEFS.length; i += 1) {
     const def = COMMUNITY_DEFS[i];
+    const base = DISTRICT_COORDS[def.district] ?? { lng: 121.39, lat: 31.16 };
     const community = await prisma.community.create({
       data: {
         name: def.name,
@@ -276,8 +286,8 @@ async function main(): Promise<void> {
         plotRatio: Number((1.2 + rnd() * 2.2).toFixed(2)),
         greenRate: Number((0.25 + rnd() * 0.2).toFixed(2)),
         propertyFee: def.propertyFee,
-        lng: Number((121.35 + i * 0.012 + rnd() * 0.004).toFixed(6)),
-        lat: Number((31.15 + i * 0.009 + rnd() * 0.003).toFixed(6)),
+        lng: Number((base.lng + (rnd() - 0.5) * 0.02).toFixed(6)),
+        lat: Number((base.lat + (rnd() - 0.5) * 0.018).toFixed(6)),
       },
     });
     communities.push(community);

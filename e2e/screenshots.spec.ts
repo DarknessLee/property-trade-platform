@@ -75,4 +75,40 @@ test.describe('角色截图', () => {
     await login(page, '13800000002');
     await shot(page, '09-B端-财务-工作台');
   });
+
+  test('10-B端-经纪人-房源管理', async ({ page }) => {
+    await login(page, '13800000020');
+    await page.goto('/admin/listings');
+    await page.locator('[data-testid="listings-table"] .ant-table-row').first().waitFor();
+    await shot(page, '10-B端-经纪人-房源管理');
+  });
+
+  test('11-B端-经纪人-录入房源', async ({ page }) => {
+    await login(page, '13800000020');
+    await page.goto('/admin/listings');
+    await page.getByTestId('btn-create-listing').click();
+    await page.locator('.ant-drawer-content').waitFor();
+    await page.waitForTimeout(500);
+    await shot(page, '11-B端-经纪人-录入房源');
+  });
+
+  test('12-B端-管理员-验真审核', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/audit');
+    await page.waitForTimeout(600);
+    await shot(page, '12-B端-管理员-验真审核');
+  });
+
+  test('13-B端-管理员-小区字典', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/communities');
+    await page.waitForTimeout(800);
+    await shot(page, '13-B端-管理员-小区字典');
+  });
+
+  test('14-C端-游客-地图找房', async ({ page }) => {
+    await page.goto('/portal/map');
+    await page.locator('[data-testid^="map-point-"]').first().waitFor();
+    await shot(page, '14-C端-游客-地图找房');
+  });
 });

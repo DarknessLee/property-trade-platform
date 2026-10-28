@@ -26,8 +26,8 @@ export class JwtAuthGuard implements CanActivate {
     }
 
     try {
-      const payload = await this.jwtService.verifyAsync<{ sub: string; role: Role; name: string; phone: string }>(token);
-      request.user = { id: payload.sub, role: payload.role, name: payload.name, phone: payload.phone };
+      const payload = await this.jwtService.verifyAsync<{ sub: string; role: Role; name: string; phone: string; agencyId?: string | null }>(token);
+      request.user = { id: payload.sub, role: payload.role, name: payload.name, phone: payload.phone, agencyId: payload.agencyId ?? null };
       return true;
     } catch {
       if (isPublic) return true;

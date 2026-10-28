@@ -1,5 +1,5 @@
 import { Avatar, Badge, Dropdown, Layout, Menu, Space, Tag } from 'antd';
-import { BellOutlined, HomeOutlined, LogoutOutlined, SearchOutlined, UserOutlined } from '@ant-design/icons';
+import { BellOutlined, EnvironmentOutlined, HomeOutlined, LogoutOutlined, SearchOutlined, UserOutlined } from '@ant-design/icons';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
@@ -67,6 +67,7 @@ export default function PortalLayout(): JSX.Element {
           items={[
             { key: '/portal', label: <Link to="/portal"><HomeOutlined /> 首页</Link> },
             { key: '/portal/listings', label: <Link to="/portal/listings"><SearchOutlined /> 找房</Link> },
+            { key: '/portal/map', label: <Link to="/portal/map"><EnvironmentOutlined /> 地图找房</Link> },
             ...(user ? [{ key: '/portal/mine', label: <Link to="/portal/mine"><UserOutlined /> 我的</Link> }] : []),
           ]}
         />
