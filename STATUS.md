@@ -1,16 +1,15 @@
 # 当前状态
 
 - 软件名称/版本：房产交易数字化协同平台 / V1.0
-- 当前阶段：M0 已确认（2026-10-28）→ 进入 M1 契约与数据基座
-- 最新 commit：`1b3348a` docs(status)；M0 决策确认提交见下（本地 `main`）
+- 当前阶段：**M1 契约与数据基座 ✅（2026-10-28 验收通过）** → 下一步 M2 用户中心 + 房源域
+- 最新 commit：`d233af3` feat(m1)（本地 `main`；远端待推送，仓库需认证）
 - 最新安装包：不适用（Web Demo）
-- 最近验收：M0 文档齐套；无构建/API/E2E（M1 起才有代码）
-- 环境基线：Windows；Node v24.22.0（DSH 内置）；pnpm 11.28.5（`C:\Users\Administrator\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\pnpm\bin\pnpm.mjs`）；npm 11.19.1；git 2.56.0；PowerShell 5.1；**须使用完全权限**（沙箱下 pwsh 启动失败 0xC0000142）
-- 已确认决策：SQLite + Prisma（D07）；全 Mock 且数据真实合规（D06/D11）；M6 软著材料删除（D05/D08）；仓库 `192.168.1.100:3300/liyunqing/property-trade-platform.git`
-- 未完成/暂缓：M1 全部内容；远端推送待首次配置
+- 最近验收：`npm run verify` 全绿 —— db:reset 49 项校验 0 失败；build 0 错误；API 18/18；E2E 12/12；截图 9 张（详见 `docs/05-M1-验收报告.md`）
+- 环境基线：Windows；Node v24.22.0；npm 11.19.1（workspaces）；git 2.56.0；Playwright Chromium 156；**须使用完全权限**（沙箱下 pwsh 启动失败 0xC0000142）
+- 已知简化：B 端业务页为占位（M2/M3）；地图找房/税费估算待 M2；验证码登录为 Mock；无真实第三方
 - 下一步（1~3 条）：
-  1. 推送 M0 提交到远端；
-  2. M1：工程骨架 + schema + 种子 + 权限 + 契约冻结；
-  3. 按 docs/01 验收后进入 M2。
-- 阅读入口：README / docs/00-项目方案与画像.md / docs/01-阶段计划与验收口径.md / docs/02-接口契约.md（M1 产出）
+  1. 配置远端推送凭据并推送 M0/M1 提交（需用户提供认证方式）；
+  2. M2：房源 CRUD/上下架/验真 + C 端地图/税费/价格走势；
+  3. M2 验收（API ≥40、E2E 累计 ≥12、全量回归）后进入 M3。
+- 阅读入口：README / docs/00-项目方案与画像.md / docs/02-接口契约.md / docs/05-M1-验收报告.md
 - 更新时间：2026-10-28
