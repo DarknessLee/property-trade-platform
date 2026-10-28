@@ -13,6 +13,9 @@ import { ListingsModule } from './modules/listings/listings.module';
 import { CommunitiesModule } from './modules/communities/communities.module';
 import { OptionsModule } from './modules/options/options.module';
 import { AttachmentsModule } from './modules/attachments/attachments.module';
+import { CustomersModule } from './modules/customers/customers.module';
+import { ShowingsModule } from './modules/showings/showings.module';
+import { ContractsModule } from './modules/contracts/contracts.module';
 
 export const JWT_SECRET = process.env.JWT_SECRET ?? 'property-trade-platform-demo-secret-2026';
 
@@ -33,6 +36,9 @@ export const JWT_SECRET = process.env.JWT_SECRET ?? 'property-trade-platform-dem
     CommunitiesModule,
     OptionsModule,
     AttachmentsModule,
+    CustomersModule,
+    ShowingsModule,
+    ContractsModule,
   ],
   controllers: [HealthController],
   providers: [

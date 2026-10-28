@@ -10,6 +10,10 @@ import DashboardPage from './pages/b/DashboardPage';
 import ListingsPage from './pages/b/ListingsPage';
 import AuditPage from './pages/b/AuditPage';
 import CommunitiesPage from './pages/b/CommunitiesPage';
+import CustomersPage from './pages/b/CustomersPage';
+import ShowingsPage from './pages/b/ShowingsPage';
+import ContractsPage from './pages/b/ContractsPage';
+import ProgressPage from './pages/b/ProgressPage';
 import PlaceholderPage from './pages/b/PlaceholderPage';
 import PortalMapPage from './pages/c/MapPage';
 import { useAuth } from './auth/AuthContext';
@@ -44,10 +48,10 @@ export default function App(): JSX.Element {
         <Route index element={<DashboardPage />} />
         <Route path="listings" element={<ListingsPage />} />
         <Route path="communities" element={<CommunitiesPage />} />
-        <Route path="customers" element={<PlaceholderPage title="客户管理" planned="M3：客户档案、需求标签、跟进记录、客户保护期" />} />
-        <Route path="showings" element={<PlaceholderPage title="带看管理" planned="M3：带看日程日历、冲突检测、反馈与评级" />} />
-        <Route path="contracts" element={<PlaceholderPage title="合同签约" planned="M3：合同模板、在线签署（Mock 电子签）、存证下载" />} />
-        <Route path="progress" element={<PlaceholderPage title="交易进度" planned="M3：面签/贷款/缴税/过户/交房时间轴" />} />
+        <Route path="customers" element={<CustomersPage />} />
+        <Route path="showings" element={<ShowingsPage />} />
+        <Route path="contracts" element={<ContractsPage />} />
+        <Route path="progress" element={<ProgressPage />} />
         <Route path="agencies" element={<PlaceholderPage title="门店与经纪人" planned="M4：门店组织架构、经纪人账号与角色分配" />} />
         <Route path="stats" element={<PlaceholderPage title="业绩统计" planned="M4：成交量、带看量、成交金额看板" />} />
         <Route path="audit" element={<AuditPage />} />

@@ -5,7 +5,7 @@
 - **软件全称**：房产交易数字化协同平台 V1.0（演示环境）
 - **产品形态**：Web 前后端分离（React SPA + NestJS API），PC 优先、响应式兼容移动浏览器
 - **数据层**：SQLite（Prisma，可切 PostgreSQL）；外部系统全部本地 Mock
-- **当前阶段**：M2 用户中心 + 房源域（M0/M1 已确认并验收）
+- **当前阶段**：M3 客户带看 + 交易签约（M0–M2 已验收）
 
 ## 技术栈
 
@@ -64,10 +64,10 @@ npm run dev          # 并行启动 API(3000) 与 Web(5173)
 | --- | --- |
 | `npm run db:reset` | 数据库重建 + 种子 + 数据质量校验（49 项） |
 | `npm run build` | 前后端构建 + 类型检查 |
-| `npm run test:api` | API 验收（44 项：认证/公开浏览/房源状态机/权限/小区/附件） |
-| `npm run test:e2e` | UI E2E（19 条，含录入→验真→审核→上架全流程、地图、税费） |
+| `npm run test:api` | API 验收（79 项：认证/房源/客户带看/合同进度/权限） |
+| `npm run test:e2e` | UI E2E（27 条，含房源录入→验真→上架、客户→带看→合同→签署→进度全流程） |
 | `npm run verify` | db:reset + build + test:api + test:e2e 全量 |
-| `npm run screenshots` | 按角色截图到 `docs/screenshots/`（14 张） |
+| `npm run screenshots` | 按角色截图到 `docs/screenshots/`（19 张） |
 
 ## Mock 与合规说明
 
@@ -86,6 +86,7 @@ npm run dev          # 并行启动 API(3000) 与 Web(5173)
 | [docs/04-权限矩阵.md](docs/04-权限矩阵.md) | 角色 × 模块、菜单可见性、后端兜底 |
 | [docs/05-M1-验收报告.md](docs/05-M1-验收报告.md) | M1 契约与数据基座验收（49 项校验 / API 18 / E2E 12） |
 | [docs/06-M2-验收报告.md](docs/06-M2-验收报告.md) | M2 用户中心 + 房源域验收（API 44 / E2E 19 / 截图 14） |
+| [docs/07-M3-验收报告.md](docs/07-M3-验收报告.md) | M3 客户带看 + 交易签约验收（API 79 / E2E 27 / 截图 19） |
 | [STATUS.md](STATUS.md) | 当前状态与下一步 |
 | [DECISIONS.md](DECISIONS.md) | 关键决策记录 |
 | [PLAN-MATRIX.md](PLAN-MATRIX.md) | 方案要求 vs 实现状态 |

@@ -1,4 +1,4 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { CallHandler, ExecutionContext, Injectable, NestInterceptor, StreamableFile } from '@nestjs/common';
 import { Observable, map } from 'rxjs';
 
 export interface ApiResponse<T> {
@@ -7,12 +7,15 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-/** 统一响应包裹：{ code: 0, message: 'ok', data } */
+/** 统一响应包裹：{ code: 0, message: 'ok', data }；文件流（StreamableFile）与空响应不包裹 */
 @Injectable()
-export class ResponseInterceptor<T> implements NestInterceptor<T, ApiResponse<T>> {
-  intercept(_context: ExecutionContext, next: CallHandler<T>): Observable<ApiResponse<T>> {
+export class ResponseInterceptor<T> implements NestInterceptor<T, unknown> {
+  intercept(_context: ExecutionContext, next: CallHandler<T>): Observable<unknown> {
     return next.handle().pipe(
-      map((data) => ({ code: 0, message: 'ok', data: data as T })),
+      map((data) => {
+        if (data instanceof StreamableFile || data === undefined) return data;
+        return { code: 0, message: 'ok', data };
+      }),
     );
   }
 }

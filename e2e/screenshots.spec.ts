@@ -111,4 +111,40 @@ test.describe('角色截图', () => {
     await page.locator('[data-testid^="map-point-"]').first().waitFor();
     await shot(page, '14-C端-游客-地图找房');
   });
+
+  test('15-B端-经纪人-客户管理', async ({ page }) => {
+    await login(page, '13800000020');
+    await page.goto('/admin/customers');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '15-B端-经纪人-客户管理');
+  });
+
+  test('16-B端-经纪人-带看日程', async ({ page }) => {
+    await login(page, '13800000020');
+    await page.goto('/admin/showings');
+    await page.getByTestId('showing-calendar').waitFor();
+    await shot(page, '16-B端-经纪人-带看日程');
+  });
+
+  test('17-B端-经纪人-合同签约', async ({ page }) => {
+    await login(page, '13800000020');
+    await page.goto('/admin/contracts');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '17-B端-经纪人-合同签约');
+  });
+
+  test('18-B端-经纪人-交易进度', async ({ page }) => {
+    await login(page, '13800000020');
+    await page.goto('/admin/progress');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '18-B端-经纪人-交易进度');
+  });
+
+  test('19-C端-买方-我的合同', async ({ page }) => {
+    await login(page, '13800000040');
+    await page.goto('/portal/mine');
+    await page.getByRole('tab', { name: /我的合同/ }).click();
+    await page.locator('[data-testid="my-contracts-table"] .ant-table-row').first().waitFor();
+    await shot(page, '19-C端-买方-我的合同');
+  });
 });

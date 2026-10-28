@@ -171,3 +171,109 @@ export const ROLE_LABELS: Record<Role, string> = {
   finance: '财务',
   admin: '平台管理员',
 };
+
+export interface Customer {
+  id: string;
+  code: string;
+  name: string;
+  phone: string;
+  type: 'buyer' | 'seller';
+  budgetMin: number | null;
+  budgetMax: number | null;
+  demand: string;
+  tags: string[];
+  level: 'A' | 'B' | 'C';
+  status: string;
+  protectionUntil: string | null;
+  agent: { id: string; name: string; phone: string };
+  agency: { id: string; name: string };
+  user: { id: string; name: string } | null;
+  showingCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Showing {
+  id: string;
+  code: string;
+  listing: { id: string; code: string; title: string; totalPrice: number; area: number; community: { name: string; district: string } };
+  customer: { id: string; code: string; name: string; phone: string; type: string; level: string; userId?: string | null };
+  agent: { id: string; name: string; agency: { id: string; name: string } };
+  scheduledAt: string;
+  actualAt: string | null;
+  durationMin: number;
+  status: string;
+  feedback: string | null;
+  rating: string | null;
+}
+
+export interface ContractTemplate {
+  id: string;
+  name: string;
+  version: string;
+  content: string;
+}
+
+export interface ProgressNode {
+  id: string;
+  nodeType: string;
+  status: 'todo' | 'doing' | 'done';
+  sortOrder: number;
+  plannedDate: string | null;
+  completedAt: string | null;
+  remark: string | null;
+}
+
+export interface Contract {
+  id: string;
+  code: string;
+  signStatus: 'draft' | 'pending' | 'signed' | 'voided';
+  amount: number;
+  commissionAmount: number;
+  commissionRate: number;
+  depositAmount?: number;
+  signedAt: string | null;
+  voidedAt?: string | null;
+  esignNo: string | null;
+  signMethod?: string | null;
+  listing: { id: string; title: string; code: string; community: { name: string; district: string }; totalPrice: number; area: number };
+  buyer: { id: string; name: string; phone: string };
+  seller: { id: string; name: string; phone: string };
+  agent: { id: string; name: string };
+  agency?: { id: string; name: string };
+  template?: { id: string; name: string; version: string };
+  contentSnapshot?: string;
+  progressDone: number;
+  progressTotal: number;
+  progress?: ProgressNode[];
+  payments?: Array<{ id: string; type: string; amount: number; status: string; tradeNo: string; paidAt: string | null }>;
+  createdAt: string;
+}
+
+export const CONTRACT_STATUS: Record<string, { label: string; color: string }> = {
+  draft: { label: '草稿', color: 'default' },
+  pending: { label: '待签署', color: 'gold' },
+  signed: { label: '已签署', color: 'green' },
+  voided: { label: '已作废', color: 'red' },
+};
+
+export const SHOWING_STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: '待确认', color: 'gold' },
+  confirmed: { label: '已确认', color: 'blue' },
+  done: { label: '已完成', color: 'green' },
+  cancelled: { label: '已取消', color: 'default' },
+};
+
+export const PROGRESS_NODES: Record<string, string> = {
+  sign: '面签',
+  loan: '贷款审批',
+  tax: '缴税',
+  transfer: '过户',
+  handover: '交房',
+};
+
+export const PROGRESS_STATUS: Record<string, { label: string; color: string }> = {
+  todo: { label: '待办', color: 'default' },
+  doing: { label: '进行中', color: 'blue' },
+  done: { label: '已完成', color: 'green' },
+};

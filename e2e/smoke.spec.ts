@@ -13,6 +13,7 @@ async function loginAs(page: Page, phone: string): Promise<void> {
   await page.getByTestId('login-phone').fill(phone);
   await page.getByTestId('login-password').fill(DEMO_PASSWORD);
   await page.getByTestId('btn-login').click();
+  await page.waitForURL(/\/(portal|admin)/);
 }
 
 test.describe('C 端门户', () => {
@@ -97,11 +98,11 @@ test.describe('B 端工作台骨架', () => {
     await expect(page.getByText('在售房源').first()).toBeVisible();
   });
 
-  test('待建设模块显示交付计划', async ({ page }) => {
+  test('交易进度页可访问（M3 已交付）', async ({ page }) => {
     await loginAs(page, '13800000020');
-    await page.getByText('客户管理').first().click();
-    await expect(page.getByTestId('admin-page-title')).toHaveText('客户管理');
-    await expect(page.getByText('建设中')).toBeVisible();
+    await page.goto('/admin/progress');
+    await expect(page.getByTestId('admin-page-title')).toHaveText('交易进度');
+    await expect(page.getByText('交易进度').first()).toBeVisible();
   });
 });
 

@@ -1,10 +1,37 @@
-import { Alert, Avatar, Button, Card, Col, Descriptions, Divider, Form, Input, List, Row, Space, Spin, Tag, Typography, App as AntdApp } from 'antd';
-import { CheckCircleOutlined, IdcardOutlined, NotificationOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useEffect, useState } from 'react';
+import {
+  Alert,
+  App as AntdApp,
+  Avatar,
+  Button,
+  Card,
+  Col,
+  Descriptions,
+  Divider,
+  Empty,
+  Form,
+  Input,
+  List,
+  Modal,
+  Row,
+  Space,
+  Spin,
+  Steps,
+  Table,
+  Tabs,
+  Tag,
+  Typography,
+} from 'antd';
+import { CheckCircleOutlined, DownloadOutlined, IdcardOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { Navigate } from 'react-router-dom';
+import type { ColumnsType } from 'antd/es/table';
 import { useAuth } from '../../auth/AuthContext';
-import { apiGet, apiPost, errorMessage } from '../../api/client';
+import { apiGet, apiPatch, apiPost, errorMessage, http } from '../../api/client';
 import { TOKEN_KEY } from '../../api/client';
+import type { Contract, ProgressNode, Showing } from '../../types';
+import { CONTRACT_STATUS, PROGRESS_NODES, PROGRESS_STATUS, SHOWING_STATUS } from '../../types';
+import { formatDate, toWan } from '../../utils/format';
 
 const { Title, Text } = Typography;
 
@@ -25,6 +52,36 @@ export default function PortalMinePage(): JSX.Element {
   const [unread, setUnread] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
+  const [showings, setShowings] = useState<Showing[]>([]);
+  const [showingsLoading, setShowingsLoading] = useState(false);
+  const [contracts, setContracts] = useState<Contract[]>([]);
+  const [contractsLoading, setContractsLoading] = useState(false);
+  const [detail, setDetail] = useState<Contract | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+
+  const loadShowings = async (): Promise<void> => {
+    setShowingsLoading(true);
+    try {
+      setShowings(await apiGet<Showing[]>('/showings/my'));
+    } catch {
+      setShowings([]);
+    } finally {
+      setShowingsLoading(false);
+    }
+  };
+
+  const loadContracts = async (): Promise<void> => {
+    setContractsLoading(true);
+    try {
+      const data = await apiGet<{ items: Contract[] }>('/contracts', { params: { pageSize: 20 } });
+      setContracts(data.items);
+    } catch {
+      setContracts([]);
+    } finally {
+      setContractsLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     void apiGet<{ items: NotificationItem[]; unreadCount: number }>('/notifications')
@@ -33,6 +90,8 @@ export default function PortalMinePage(): JSX.Element {
         setUnread(data.unreadCount);
       })
       .catch(() => undefined);
+    void loadShowings();
+    void loadContracts();
   }, [user]);
 
   if (loading) {
@@ -43,9 +102,7 @@ export default function PortalMinePage(): JSX.Element {
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!user) return <Navigate to="/login" replace />;
 
   const submitRealName = async (values: { realName: string; idCard: string }): Promise<void> => {
     setSubmitting(true);
@@ -72,6 +129,54 @@ export default function PortalMinePage(): JSX.Element {
     }
   };
 
+  const cancelShowing = async (showing: Showing): Promise<void> => {
+    try {
+      await apiPatch(`/showings/my/${showing.id}/cancel`);
+      message.success('带看已取消');
+      await loadShowings();
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
+  };
+
+  const openContract = async (contract: Contract): Promise<void> => {
+    try {
+      const data = await apiGet<Contract>(`/contracts/${contract.id}`);
+      setDetail(data);
+      setDetailOpen(true);
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
+  };
+
+  const signContract = async (): Promise<void> => {
+    if (!detail) return;
+    try {
+      await apiPost(`/contracts/${detail.id}/sign`);
+      message.success('签署成功，交易进度已更新');
+      await openContract(detail);
+      await loadContracts();
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
+  };
+
+  const downloadContract = async (): Promise<void> => {
+    if (!detail) return;
+    try {
+      const blob = (await http.get(`/contracts/${detail.id}/download`, { responseType: 'blob' })) as unknown as Blob;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${detail.code}-房屋买卖合同.pdf`;
+      link.click();
+      URL.revokeObjectURL(url);
+      message.success('合同 PDF 已下载');
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
+  };
+
   const realNameTag =
     user.realNameStatus === 'approved' ? (
       <Tag icon={<CheckCircleOutlined />} color="success">已实名</Tag>
@@ -83,38 +188,84 @@ export default function PortalMinePage(): JSX.Element {
       <Tag color="default">未实名</Tag>
     );
 
+  const showingColumns: ColumnsType<Showing> = [
+    {
+      title: '预约时间',
+      width: 160,
+      render: (_, record) => (
+        <div>
+          {dayjs(record.scheduledAt).format('YYYY-MM-DD HH:mm')}
+          <div style={{ color: '#8a9099', fontSize: 12 }}>{record.code}</div>
+        </div>
+      ),
+    },
+    { title: '房源', render: (_, record) => <div>{record.listing.title}<div style={{ color: '#8a9099', fontSize: 12 }}>{record.listing.community.name}</div></div> },
+    { title: '经纪人', width: 100, render: (_, record) => record.agent.name },
+    { title: '状态', width: 90, render: (_, record) => <Tag color={SHOWING_STATUS[record.status]?.color}>{SHOWING_STATUS[record.status]?.label}</Tag> },
+    {
+      title: '操作',
+      width: 100,
+      render: (_, record) =>
+        ['pending', 'confirmed'].includes(record.status) ? (
+          <Button size="small" type="link" danger onClick={() => void cancelShowing(record)}>取消</Button>
+        ) : (
+          <Text type="secondary" style={{ fontSize: 12 }}>—</Text>
+        ),
+    },
+  ];
+
+  const contractColumns: ColumnsType<Contract> = [
+    { title: '合同编号', dataIndex: 'code', width: 160 },
+    { title: '房源', render: (_, record) => record.listing.title },
+    { title: '成交价', width: 110, render: (_, record) => `${toWan(record.amount)} 万` },
+    { title: '状态', width: 100, render: (_, record) => <Tag color={CONTRACT_STATUS[record.signStatus]?.color}>{CONTRACT_STATUS[record.signStatus]?.label}</Tag> },
+    { title: '进度', width: 100, render: (_, record) => `${record.progressDone}/${record.progressTotal}` },
+    {
+      title: '操作',
+      width: 100,
+      render: (_, record) => <Button size="small" type="link" onClick={() => void openContract(record)}>查看</Button>,
+    },
+  ];
+
+  const timelineOf = (progress: ProgressNode[] | undefined): Array<{ title: string; status: 'finish' | 'process' | 'wait'; description: JSX.Element }> =>
+    (progress ?? []).map((node) => ({
+      title: PROGRESS_NODES[node.nodeType] ?? node.nodeType,
+      status: node.status === 'done' ? 'finish' : node.status === 'doing' ? 'process' : 'wait',
+      description: (
+        <span style={{ fontSize: 12 }}>
+          <Tag color={PROGRESS_STATUS[node.status]?.color}>{PROGRESS_STATUS[node.status]?.label}</Tag>
+          {node.completedAt ? `完成 ${formatDate(node.completedAt)}` : node.plannedDate ? `计划 ${formatDate(node.plannedDate)}` : ''}
+        </span>
+      ),
+    }));
+
   return (
     <div className="page-section" style={{ paddingTop: 24, paddingBottom: 48 }}>
       <Row gutter={24}>
-        <Col xs={24} lg={9}>
+        <Col xs={24} lg={8}>
           <Card>
             <Space size={16} align="start">
               <Avatar size={64} style={{ background: '#1677ff', fontSize: 24 }}>
                 {user.name.slice(0, 1)}
               </Avatar>
               <div>
-                <Title level={4} style={{ margin: 0 }} data-testid="mine-name">
-                  {user.name}
-                </Title>
+                <Title level={4} style={{ margin: 0 }} data-testid="mine-name">{user.name}</Title>
                 <Space size={6} style={{ marginTop: 6 }}>
                   <Tag color="blue">{user.roleLabel}</Tag>
                   {realNameTag}
                 </Space>
-                <div style={{ color: '#6b7280', fontSize: 12, marginTop: 6 }}>
-                  {user.phone} {user.agencyName ? `· ${user.agencyName}` : ''}
-                </div>
+                <div style={{ color: '#6b7280', fontSize: 12, marginTop: 6 }}>{user.phone} {user.agencyName ? `· ${user.agencyName}` : ''}</div>
               </div>
             </Space>
-
             <Divider />
-
             <Descriptions column={1} size="small">
               <Descriptions.Item label="账号 ID">{user.id}</Descriptions.Item>
               <Descriptions.Item label="注册手机">{user.phone}</Descriptions.Item>
               <Descriptions.Item label="实名状态">
                 {user.realNameStatus === 'approved' ? '已通过' : user.realNameStatus === 'pending' ? '审核中' : user.realNameStatus === 'rejected' ? '已驳回' : '未提交'}
               </Descriptions.Item>
-              <Descriptions.Item label="登录令牌">已签发（JWT，12 小时有效）</Descriptions.Item>
+              <Descriptions.Item label="带看记录">{showings.length} 次</Descriptions.Item>
+              <Descriptions.Item label="合同数量">{contracts.length} 份</Descriptions.Item>
             </Descriptions>
           </Card>
 
@@ -123,87 +274,100 @@ export default function PortalMinePage(): JSX.Element {
               <Alert type="success" showIcon message="已完成实名认证" description="您的身份信息已脱敏存储，仅用于交易核验。" />
             ) : (
               <>
-                <Alert
-                  style={{ marginBottom: 16 }}
-                  type="info"
-                  showIcon
-                  message="演示环境"
-                  description="证件号需通过 GB 11643 校验位，提交后自动进入待审核状态；不会调用真实核验接口。"
-                />
+                <Alert style={{ marginBottom: 16 }} type="info" showIcon message="演示环境" description="证件号需通过 GB 11643 校验位，提交后自动进入待审核状态；不会调用真实核验接口。" />
                 <Form form={form} layout="vertical" onFinish={submitRealName} initialValues={{ realName: user.name }}>
                   <Form.Item name="realName" label="真实姓名" rules={[{ required: true, message: '请填写真实姓名' }]}>
                     <Input placeholder="请输入真实姓名" data-testid="input-realname" />
                   </Form.Item>
-                  <Form.Item
-                    name="idCard"
-                    label="身份证号"
-                    rules={[
-                      { required: true, message: '请填写身份证号' },
-                      { pattern: /^\d{17}[\dXx]$/, message: '身份证号应为 18 位' },
-                    ]}
-                  >
-                    <Input placeholder="18 位身份证号（演示可用 11010119900307001X 类格式）" data-testid="input-idcard" />
+                  <Form.Item name="idCard" label="身份证号" rules={[{ required: true, message: '请填写身份证号' }, { pattern: /^\d{17}[\dXx]$/, message: '身份证号应为 18 位' }]}>
+                    <Input placeholder="18 位身份证号" data-testid="input-idcard" />
                   </Form.Item>
-                  <Button type="primary" htmlType="submit" loading={submitting} icon={<SafetyCertificateOutlined />} data-testid="btn-submit-realname">
-                    提交实名认证
-                  </Button>
+                  <Button type="primary" htmlType="submit" loading={submitting} icon={<SafetyCertificateOutlined />} data-testid="btn-submit-realname">提交实名认证</Button>
                 </Form>
               </>
             )}
           </Card>
         </Col>
 
-        <Col xs={24} lg={15}>
-          <Card
-            title={<span><NotificationOutlined /> 我的消息 {unread > 0 ? <Tag color="red">{unread} 条未读</Tag> : null}</span>}
-            extra={<Button size="small" onClick={markAllRead} disabled={unread === 0}>全部已读</Button>}
-          >
-            <List
-              dataSource={notifications}
-              locale={{ emptyText: '暂无消息' }}
-              renderItem={(item) => (
-                <List.Item>
-                  <List.Item.Meta
-                    title={
-                      <Space>
-                        <span style={{ fontWeight: item.isRead ? 400 : 600 }}>{item.title}</span>
-                        {!item.isRead && <Tag color="red">未读</Tag>}
-                      </Space>
-                    }
-                    description={
-                      <div>
-                        <div style={{ color: '#4b5563' }}>{item.content}</div>
-                        <Text type="secondary" style={{ fontSize: 12 }}>
-                          {new Date(item.createdAt).toLocaleString('zh-CN')}
-                        </Text>
+        <Col xs={24} lg={16}>
+          <Card>
+            <Tabs
+              defaultActiveKey="showings"
+              items={[
+                {
+                  key: 'showings',
+                  label: `我的预约（${showings.length}）`,
+                  children: (
+                    <Table rowKey="id" columns={showingColumns} dataSource={showings} loading={showingsLoading} pagination={false} locale={{ emptyText: <Empty description="还没有预约记录，去房源详情页预约看房吧" /> }} data-testid="my-showings-table" />
+                  ),
+                },
+                {
+                  key: 'contracts',
+                  label: `我的合同（${contracts.length}）`,
+                  children: (
+                    <Table rowKey="id" columns={contractColumns} dataSource={contracts} loading={contractsLoading} pagination={false} locale={{ emptyText: <Empty description="暂无合同" /> }} data-testid="my-contracts-table" />
+                  ),
+                },
+                {
+                  key: 'messages',
+                  label: `我的消息${unread > 0 ? `（${unread}）` : ''}`,
+                  children: (
+                    <>
+                      <div style={{ textAlign: 'right', marginBottom: 8 }}>
+                        <Button size="small" onClick={() => void markAllRead()} disabled={unread === 0}>全部已读</Button>
                       </div>
-                    }
-                  />
-                </List.Item>
-              )}
+                      <List
+                        dataSource={notifications}
+                        locale={{ emptyText: '暂无消息' }}
+                        renderItem={(item) => (
+                          <List.Item>
+                            <List.Item.Meta
+                              title={<Space><span style={{ fontWeight: item.isRead ? 400 : 600 }}>{item.title}</span>{!item.isRead && <Tag color="red">未读</Tag>}</Space>}
+                              description={<div><div style={{ color: '#4b5563' }}>{item.content}</div><Text type="secondary" style={{ fontSize: 12 }}>{new Date(item.createdAt).toLocaleString('zh-CN')}</Text></div>}
+                            />
+                          </List.Item>
+                        )}
+                      />
+                    </>
+                  ),
+                },
+              ]}
             />
           </Card>
-
-          <Row gutter={16} style={{ marginTop: 16 }}>
-            <Col span={8}>
-              <Card size="small" title="我的预约带看">
-                <Text type="secondary">M3 阶段开放：查看/取消预约</Text>
-              </Card>
-            </Col>
-            <Col span={8}>
-              <Card size="small" title="我的合同">
-                <Text type="secondary">M3 阶段开放：合同预览与签署</Text>
-              </Card>
-            </Col>
-            <Col span={8}>
-              <Card size="small" title="交易进度">
-                <Text type="secondary">M3 阶段开放：时间轴跟踪</Text>
-              </Card>
-            </Col>
-          </Row>
         </Col>
       </Row>
-      {localStorage.getItem(TOKEN_KEY) ? null : null}
+
+      <Modal
+        title={detail ? `合同详情 · ${detail.code}` : '合同详情'}
+        open={detailOpen}
+        onCancel={() => setDetailOpen(false)}
+        footer={null}
+        width={680}
+      >
+        {detail && (
+          <>
+            <Space wrap style={{ marginBottom: 12 }}>
+              <Tag color={CONTRACT_STATUS[detail.signStatus]?.color}>{CONTRACT_STATUS[detail.signStatus]?.label}</Tag>
+              {detail.esignNo && <Tag color="purple">{detail.esignNo}</Tag>}
+            </Space>
+            <Descriptions column={2} size="small" bordered>
+              <Descriptions.Item label="房源" span={2}>{detail.listing.title}</Descriptions.Item>
+              <Descriptions.Item label="成交价">{detail.amount.toLocaleString()} 元</Descriptions.Item>
+              <Descriptions.Item label="佣金">{detail.commissionAmount.toLocaleString()} 元</Descriptions.Item>
+              <Descriptions.Item label="买方">{detail.buyer.name}</Descriptions.Item>
+              <Descriptions.Item label="卖方">{detail.seller.name}</Descriptions.Item>
+            </Descriptions>
+            <Title level={5} style={{ marginTop: 16 }}>交易进度</Title>
+            <Steps direction="vertical" size="small" items={timelineOf(detail.progress)} />
+            <Space style={{ marginTop: 12 }}>
+              {['draft', 'pending'].includes(detail.signStatus) && (
+                <Button type="primary" onClick={() => void signContract()} data-testid="btn-sign-contract-customer">确认签署</Button>
+              )}
+              <Button icon={<DownloadOutlined />} onClick={() => void downloadContract()}>下载合同 PDF</Button>
+            </Space>
+          </>
+        )}
+      </Modal>
     </div>
   );
 }

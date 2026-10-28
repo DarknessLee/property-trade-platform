@@ -1,8 +1,9 @@
-import { Alert, Avatar, Button, Card, Col, Descriptions, Divider, Form, Image, Row, Select, Space, Spin, Switch, Tag, Typography, App as AntdApp } from 'antd';
+import { Alert, Avatar, Button, Card, Col, DatePicker, Descriptions, Divider, Form, Image, Modal, Row, Select, Space, Spin, Switch, Tag, TimePicker, Typography, App as AntdApp } from 'antd';
 import { ArrowLeftOutlined, EnvironmentOutlined, PhoneOutlined, ScheduleOutlined, UserOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { apiGet } from '../../api/client';
+import dayjs, { type Dayjs } from 'dayjs';
+import { apiGet, apiPost, errorMessage } from '../../api/client';
 import type { Listing } from '../../types';
 import { toWan } from '../../components/ListingCard';
 import PriceChart from '../../components/PriceChart';
@@ -23,6 +24,9 @@ export default function PortalListingDetailPage(): JSX.Element {
   const [firstHome, setFirstHome] = useState(true);
   const [overTwoYears, setOverTwoYears] = useState(true);
   const [onlyHomeOverFive, setOnlyHomeOverFive] = useState(false);
+  const [bookingOpen, setBookingOpen] = useState(false);
+  const [bookingForm] = Form.useForm<{ date: Dayjs; time: Dayjs }>();
+  const [bookingSubmitting, setBookingSubmitting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -266,7 +270,8 @@ export default function PortalListingDetailPage(): JSX.Element {
                     navigate('/login');
                     return;
                   }
-                  message.info('预约带看将在 M3 阶段开放（本阶段完成房源域与浏览体验）');
+                  bookingForm.setFieldsValue({ date: dayjs().add(1, 'day'), time: dayjs().hour(10).minute(0) });
+                  setBookingOpen(true);
                 }}
                 data-testid="btn-book-showing"
               >
@@ -284,6 +289,43 @@ export default function PortalListingDetailPage(): JSX.Element {
           <Alert style={{ marginTop: 16 }} type="info" showIcon message="演示环境提示" description="房源、价格、经纪人均为虚构数据，仅用于功能演示。" />
         </Col>
       </Row>
+
+      <Modal
+        title="预约看房"
+        open={bookingOpen}
+        onCancel={() => setBookingOpen(false)}
+        okText="提交预约"
+        confirmLoading={bookingSubmitting}
+        onOk={async () => {
+          try {
+            const values = await bookingForm.validateFields();
+            const scheduledAt = values.date.hour(values.time.hour()).minute(values.time.minute()).second(0);
+            setBookingSubmitting(true);
+            await apiPost('/showings/my', { listingId: listing.id, scheduledAt: scheduledAt.toISOString(), durationMin: 30 });
+            message.success('预约已提交，经纪人确认后将通知您');
+            setBookingOpen(false);
+          } catch (error) {
+            if (error instanceof Error) message.error(errorMessage(error));
+          } finally {
+            setBookingSubmitting(false);
+          }
+        }}
+      >
+        <div style={{ marginBottom: 12, color: '#6b7280' }}>
+          {listing.title} · {listing.community.name}
+        </div>
+        <Form form={bookingForm} layout="vertical">
+          <Space.Compact style={{ width: '100%' }}>
+            <Form.Item name="date" label="预约日期" rules={[{ required: true }]} style={{ flex: 1, marginRight: 12 }}>
+              <DatePicker style={{ width: '100%' }} format="YYYY-MM-DD" disabledDate={(current) => current && current < dayjs().startOf('day')} data-testid="booking-date" />
+            </Form.Item>
+            <Form.Item name="time" label="预约时间" rules={[{ required: true }]} style={{ flex: 1 }}>
+              <TimePicker style={{ width: '100%' }} format="HH:mm" minuteStep={30} data-testid="booking-time" />
+            </Form.Item>
+          </Space.Compact>
+        </Form>
+        <div style={{ color: '#8a9099', fontSize: 12 }}>提交后由该房源维护经纪人确认；同一经纪人时段冲突时需另选时间。</div>
+      </Modal>
     </div>
   );
 }

@@ -24,6 +24,10 @@ http.interceptors.request.use((config) => {
 
 http.interceptors.response.use(
   (response) => {
+    // 文件流（blob/arraybuffer）直接返回原始数据，不解析统一包裹
+    if (response.config.responseType === 'blob' || response.config.responseType === 'arraybuffer') {
+      return response.data as never;
+    }
     const envelope = response.data as ApiEnvelope<unknown>;
     return envelope?.data as never;
   },
