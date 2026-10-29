@@ -1,93 +1,179 @@
-# 房产交易数字化协同平台（property-trade-platform）
+# 房产交易数字化协同平台（房交平台 V1.0）· 软著 Demo
 
-面向房产交易的 B/S Web 协同平台 Demo（软著演示口径），覆盖「房源—带看—签约—交易进度」全链路，C 端门户与 B 端工作台同源按角色分流。
+面向房产交易的 B/S Web 协同平台 Demo：连接买卖双方与经纪机构，打通「房源—带看—签约—资金—交易进度」全链路。C 端门户与 B 端工作台同源，按 6 类角色分流。
 
-- **软件全称**：房产交易数字化协同平台 V1.0（演示环境）
-- **产品形态**：Web 前后端分离（React SPA + NestJS API），PC 优先、响应式兼容移动浏览器
-- **数据层**：SQLite（Prisma，可切 PostgreSQL）；外部系统全部本地 Mock
-- **当前阶段**：M4 机构运营 + 集成验收（M0–M3 已验收）
+> 演示环境：所有数据为虚构 Mock；电子签、支付、短信、实名核验、地图均为本地模拟，不具法律效力。
+
+## 核心能力
+
+| 端 | 能力 |
+| --- | --- |
+| C 端（买方/卖方） | 房源搜索筛选、房源详情（图片/税费估算/同小区价格对比）、地图找房、预约看房、我的预约、我的合同（查看/签署/下载 PDF）、交易进度、站内消息、实名认证 |
+| B 端（经纪人/店长/财务/管理员） | 工作台、房源管理（录入/编辑/上下架/验真/图片与协议上传）、客户建档（标签/评级/保护期/防撞单）、带看周历（冲突检测/反馈评级）、合同签约（模板/发起/电子签署/作废/PDF）、交易进度推进与提醒、门店与经纪人、账号权限、业绩统计（总览/趋势/排行）、房源验真 + 实名审核、操作日志、资金核对 |
+| 平台能力 | JWT 鉴权 + 角色数据范围（本人/本店/全平台）、统一响应与业务错误码、软删除与审计日志、49 项种子数据自校验、Mock 第三方适配 |
 
 ## 技术栈
 
 | 层 | 选型 |
 | --- | --- |
-| 前端 | React 18 + TypeScript + Vite + Ant Design 5 + React Router |
+| 前端 | React 18 + TypeScript + Vite 6 + Ant Design 5 + React Router 6 + ECharts |
 | 后端 | NestJS 11 + TypeScript + Prisma 6 + JWT |
-| 数据库 | SQLite（schema 保持 PostgreSQL 兼容） |
-| 验收 | Vitest + Supertest（API）、Playwright（E2E / 角色截图） |
+| 数据库 | SQLite（schema 保持 PostgreSQL 兼容；Redis/MQ 用进程内替代） |
+| 测试 | Vitest + Supertest（API 107 项）、Playwright（E2E 34 条 + 角色截图 25 张） |
 
 ## 目录结构
 
 ```text
 property-trade-platform/
-├─ server/                # NestJS API
-│  ├─ prisma/             # schema、migration、seed、validate
-│  ├─ src/                # 模块：auth / public / dicts / notifications / health
-│  └─ test/               # API 验收（vitest + supertest）
-├─ web/                   # React SPA（C 端门户 + B 端工作台）
-│  ├─ src/pages/c/        # C 端页面
-│  └─ src/pages/b/        # B 端页面
-├─ e2e/                   # Playwright 用例与截图脚本
-├─ docs/                  # 00 画像 / 01 阶段 / 02 契约 / 03 数据 / 04 权限 / 05+ 报告
-├─ STATUS.md              # 当前状态（新会话先读）
-├─ DECISIONS.md           # 决策日志
-├─ PLAN-MATRIX.md         # 方案-实现追踪
-└─ package.json           # npm workspaces 入口
+├─ server/                 # NestJS API
+│  ├─ prisma/              # schema、migrations、seed、validate
+│  ├─ src/modules/         # auth/public/listings/communities/customers/showings/contracts/
+│  │                       # agencies/stats/admin/finance/attachments/notifications/dicts
+│  └─ test/                # API 验收（api/listings/m3/m4 共 107 项）
+├─ web/                    # React SPA
+│  ├─ src/pages/c/         # C 端门户（首页/列表/详情/地图/个人中心）
+│  └─ src/pages/b/         # B 端工作台（工作台/房源/客户/带看/合同/进度/门店/统计/审核/日志/资金/账号）
+├─ e2e/                    # Playwright 用例与截图脚本
+├─ scripts/check-docs.mjs  # 文档一致性检查（链接/截图/名称版本）
+├─ docs/                   # 00 画像、01 阶段、02 契约、03 数据、04 权限、05–09 阶段验收报告
+├─ STATUS.md / DECISIONS.md / PLAN-MATRIX.md
+└─ package.json            # npm workspaces 统一入口
 ```
 
 ## 快速开始
 
+前置：Node.js ≥ 20、npm ≥ 10（Windows / macOS / Linux 均可；本项目在 Windows + Node 24 下验收）。
+
 ```powershell
-npm install          # 安装依赖（npm workspaces）
-npm run db:reset     # 重置 SQLite + 迁移 + 种子 + 49 项数据校验
+npm install          # 安装依赖（npm workspaces；自动 prisma generate）
+npm run db:reset     # 建库 + 迁移 + 种子数据 + 49 项数据质量校验
 npm run dev          # 并行启动 API(3000) 与 Web(5173)
 ```
 
-访问 <http://127.0.0.1:5173>；API 文档级契约见 `docs/02-接口契约.md`，健康检查 <http://127.0.0.1:3000/api/health>。
+访问 <http://127.0.0.1:5173>，API 健康检查 <http://127.0.0.1:3000/api/health>。
+生产预览：`npm run build` 后 `npm run start -w server` + `npm run preview -w web`。
 
-## 演示账号（密码统一 `123456`）
+### 演示账号（密码统一 `123456`）
 
-| 角色 | 手机号 | 姓名 | 入口 |
+| 角色 | 手机号 | 姓名 | 入口与推荐看点 |
 | --- | --- | --- | --- |
-| 买方 | 13800000040 | 张伟 | C 端门户 |
-| 卖方 | 13800000060 | 高强 | C 端门户 |
-| 经纪人 | 13800000020 | 陈志远 | B 端工作台 |
-| 店长 | 13800000003 | 赵敏 | B 端工作台 |
-| 财务 | 13800000002 | 邱丽 | B 端工作台 |
-| 平台管理员 | 13800000001 | 平台管理员 | B 端工作台 |
+| 买方 | 13800000040 | 张伟 | C 端：找房 → 详情税费/价格参考 → 预约看房 → 我的预约/合同 |
+| 卖方 | 13800000060 | 高强 | C 端：我的合同与交易进度 |
+| 经纪人 | 13800000020 | 陈志远 | B 端：房源录入→验真→上架、客户/带看、发起签约、进度推进 |
+| 店长 | 13800000003 | 赵敏 | B 端：门店与经纪人、业绩统计（趋势/排行） |
+| 财务 | 13800000002 | 邱丽 | B 端：资金核对（核对入账） |
+| 平台管理员 | 13800000001 | 平台管理员 | B 端：审核中心、操作日志、账号权限、小区字典 |
 
-验证码登录为 Mock：验证码固定 `123456`。
+验证码登录为 Mock：验证码固定 `123456`（模拟短信）。
+
+### 演示动线（约 5 分钟）
+
+1. 经纪人登录 → 房源管理：录入房源 → 上传委托协议 → 提交验真；
+2. 管理员登录 → 后台审核：房源验真通过 → 经纪人上架；
+3. 经纪人 → 客户管理建档 → 带看管理（周历/新建/确认/完成）→ 合同签约（发起 → 电子签署 → 下载 PDF）；
+4. 交易进度：按「面签→贷款→缴税→过户→交房」顺序推进并提醒双方；
+5. 买方登录 C 端：找房/地图 → 详情税费估算 → 预约看房 → 我的合同查看进度；
+6. 店长看业绩统计；财务核对资金入账；管理员查看操作日志与账号权限。
+
+## 功能截图（最终 UI + 最终种子数据）
+
+### C 端门户
+
+| 登录 | 门户首页 |
+| --- | --- |
+| ![登录页](docs/screenshots/01-登录页.png) | ![门户首页](docs/screenshots/02-C端-游客-门户首页.png) |
+
+| 房源列表 | 房源详情（税费估算 / 同小区价格对比） |
+| --- | --- |
+| ![房源列表](docs/screenshots/03-C端-游客-房源列表.png) | ![房源详情](docs/screenshots/04-C端-游客-房源详情.png) |
+
+| 地图找房 | 买方个人中心 |
+| --- | --- |
+| ![地图找房](docs/screenshots/14-C端-游客-地图找房.png) | ![买方个人中心](docs/screenshots/05-C端-买方-个人中心.png) |
+
+| 买方「我的合同」 |
+| --- |
+| ![我的合同](docs/screenshots/19-C端-买方-我的合同.png) |
+
+### B 端工作台
+
+| 经纪人工作台 | 店长工作台 |
+| --- | --- |
+| ![经纪人工作台](docs/screenshots/06-B端-经纪人-工作台.png) | ![店长工作台](docs/screenshots/07-B端-店长-工作台.png) |
+
+| 管理员工作台 | 财务工作台 |
+| --- | --- |
+| ![管理员工作台](docs/screenshots/08-B端-管理员-工作台.png) | ![财务工作台](docs/screenshots/09-B端-财务-工作台.png) |
+
+| 房源管理 | 录入房源 |
+| --- | --- |
+| ![房源管理](docs/screenshots/10-B端-经纪人-房源管理.png) | ![录入房源](docs/screenshots/11-B端-经纪人-录入房源.png) |
+
+| 房源验真审核 | 小区字典 |
+| --- | --- |
+| ![房源验真审核](docs/screenshots/12-B端-管理员-验真审核.png) | ![小区字典](docs/screenshots/13-B端-管理员-小区字典.png) |
+
+| 客户管理 | 带看日程 |
+| --- | --- |
+| ![客户管理](docs/screenshots/15-B端-经纪人-客户管理.png) | ![带看日程](docs/screenshots/16-B端-经纪人-带看日程.png) |
+
+| 合同签约 | 交易进度 |
+| --- | --- |
+| ![合同签约](docs/screenshots/17-B端-经纪人-合同签约.png) | ![交易进度](docs/screenshots/18-B端-经纪人-交易进度.png) |
+
+| 门店与经纪人 | 业绩统计 |
+| --- | --- |
+| ![门店与经纪人](docs/screenshots/20-B端-店长-门店与经纪人.png) | ![业绩统计](docs/screenshots/21-B端-店长-业绩统计.png) |
+
+| 实名认证审核 | 操作日志 |
+| --- | --- |
+| ![实名审核](docs/screenshots/22-B端-管理员-实名审核.png) | ![操作日志](docs/screenshots/23-B端-管理员-操作日志.png) |
+
+| 资金核对 | 账号权限 |
+| --- | --- |
+| ![资金核对](docs/screenshots/24-B端-财务-资金核对.png) | ![账号权限](docs/screenshots/25-B端-管理员-账号权限.png) |
 
 ## 验收命令
 
 | 命令 | 说明 |
 | --- | --- |
-| `npm run db:reset` | 数据库重建 + 种子 + 数据质量校验（49 项） |
-| `npm run build` | 前后端构建 + 类型检查 |
-| `npm run test:api` | API 验收（107 项：认证/房源/客户带看/合同进度/机构统计/审核日志/资金/权限） |
-| `npm run test:e2e` | UI E2E（34 条，含房源、带看、合同、机构、统计、审核、日志、资金全流程） |
-| `npm run verify` | db:reset + build + test:api + test:e2e 全量 |
-| `npm run screenshots` | 按角色截图到 `docs/screenshots/`（25 张） |
+| `npm run db:reset` | 数据库重建 + 迁移 + 种子 + 49 项数据质量校验（失败即退出非 0） |
+| `npm run build` | server + web 构建与类型检查（0 错误） |
+| `npm run test:api` | API 验收 107 项（正常/异常/权限/数据范围） |
+| `npm run test:e2e` | UI E2E 34 条（6 角色全链路） |
+| `npm run check:docs` | 文档一致性（本地链接、README 截图齐全、名称/版本、阶段报告） |
+| `npm run verify` | 依次执行 db:reset → build → test:api → test:e2e → check:docs |
+| `npm run screenshots` | 按角色生成 25 张最终截图到 `docs/screenshots/` |
 
-## Mock 与合规说明
+## 数据与 Mock 说明
 
-- 电子签、支付、短信、实名认证、地图均为本地 Mock，**不具法律效力、不产生真实费用**；UI 标注「演示环境」。
-- 数据全部为虚构机构/小区/姓名；身份证号仅用于校验位演示，脱敏存储。
-- 本项目**不制作软著登记材料**（决策 D08），仅交付可运行 Demo 与工程文档。
+- 种子规模：6 机构/门店、12 经纪人、36 用户、15 小区、60 房源、30 客户、45 带看、12 合同、60 进度节点、28 资金记录、40 通知、50 日志、40 字典。
+- 数据真实性：手机号合法号段、身份证 GB 11643 校验位（脱敏存储）、房源/合同/带看编号规则唯一、金额自洽（总价=单价×面积取整、佣金=金额×费率）、状态机可达、日期顺序合理、全虚构机构/小区/人名。
+- 外部系统全部 Mock：e签宝电子签、支付通道、短信、实名认证、高德地图、OSS、RabbitMQ；不申请真实密钥、不产生真实费用与法律效力。
 
-## 文档入口
+## 文档索引
 
 | 文档 | 说明 |
 | --- | --- |
+| [docs/M0-立项报告.md](docs/M0-立项报告.md) | 差距表、假设、待确认问题、风险、不做清单 |
 | [docs/00-项目方案与画像.md](docs/00-项目方案与画像.md) | 项目画像、角色、范围、技术边界 |
-| [docs/01-阶段计划与验收口径.md](docs/01-阶段计划与验收口径.md) | M0–M5 阶段、交付物、验收命令 |
-| [docs/02-接口契约.md](docs/02-接口契约.md) | 统一响应、错误码、字段级接口、状态机 |
+| [docs/01-阶段计划与验收口径.md](docs/01-阶段计划与验收口径.md) | M0–M5 阶段、交付物、验收命令与门禁 |
+| [docs/02-接口契约.md](docs/02-接口契约.md) | 统一响应、错误码、字段级接口、状态机、testid 规范 |
 | [docs/03-数据模型与种子.md](docs/03-数据模型与种子.md) | 17 张表、种子分布、49 项校验 |
 | [docs/04-权限矩阵.md](docs/04-权限矩阵.md) | 角色 × 模块、菜单可见性、后端兜底 |
-| [docs/05-M1-验收报告.md](docs/05-M1-验收报告.md) | M1 契约与数据基座验收（49 项校验 / API 18 / E2E 12） |
-| [docs/06-M2-验收报告.md](docs/06-M2-验收报告.md) | M2 用户中心 + 房源域验收（API 44 / E2E 19 / 截图 14） |
-| [docs/07-M3-验收报告.md](docs/07-M3-验收报告.md) | M3 客户带看 + 交易签约验收（API 79 / E2E 27 / 截图 19） |
-| [docs/08-M4-验收报告.md](docs/08-M4-验收报告.md) | M4 机构运营 + 集成验收（API 107 / E2E 34 / 截图 25） |
-| [STATUS.md](STATUS.md) | 当前状态与下一步 |
+| [docs/05-M1-验收报告.md](docs/05-M1-验收报告.md) | M1 契约与数据基座 |
+| [docs/06-M2-验收报告.md](docs/06-M2-验收报告.md) | M2 用户中心 + 房源域 |
+| [docs/07-M3-验收报告.md](docs/07-M3-验收报告.md) | M3 客户带看 + 交易签约 |
+| [docs/08-M4-验收报告.md](docs/08-M4-验收报告.md) | M4 机构运营 + 集成验收 |
+| [docs/09-M5-验收报告.md](docs/09-M5-验收报告.md) | M5 文档收敛与冷启动 |
+| [STATUS.md](STATUS.md) | 当前状态与下一步（新会话先读） |
 | [DECISIONS.md](DECISIONS.md) | 关键决策记录 |
-| [PLAN-MATRIX.md](PLAN-MATRIX.md) | 方案要求 vs 实现状态 |
+| [PLAN-MATRIX.md](PLAN-MATRIX.md) | 方案要求 vs 实现状态追踪 |
+
+## 边界与不做
+
+- 不做软著登记材料（D08）：不生成 60 页源码/手册/申请表。
+- 方案二期不做：金融对接、过户线上化、数据看板、独立 H5/小程序/APP。
+- 非功能 Demo 边界：未做并发压测（5000 在线/QPS 1000）、99.9% 可用性、OSS/CDN、生产级审批流。
+- 电子签/支付/短信/实名/地图为本地 Mock，不接真实第三方；合同金额按演示规则强制等于挂牌总价。
+- 数据与操作均在本地 SQLite，重置数据请执行 `npm run db:reset`。
