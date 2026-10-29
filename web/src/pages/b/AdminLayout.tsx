@@ -81,31 +81,44 @@ export default function AdminLayout(): JSX.Element {
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={220} theme="dark" style={{ position: 'sticky', top: 0, height: '100vh' }}>
-        <div style={{ height: 64, display: 'flex', alignItems: 'center', gap: 10, padding: '0 20px', color: '#fff' }}>
-          <div
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 8,
-              background: 'linear-gradient(135deg,#1677ff,#36cfc9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 700,
-            }}
-          >
-            房
+      {/* 侧边栏背景随内容高度拉伸；菜单在整列内吸顶滚动，避免长页面下方出现白色断档 */}
+      <Sider width={220} theme="dark" style={{ overflow: 'hidden' }}>
+        <div
+          style={{
+            position: 'sticky',
+            top: 0,
+            height: '100vh',
+            overflowY: 'auto',
+            overflowX: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+          }}
+        >
+          <div style={{ height: 64, display: 'flex', alignItems: 'center', gap: 10, padding: '0 20px', color: '#fff', flexShrink: 0 }}>
+            <div
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 8,
+                background: 'linear-gradient(135deg,#1677ff,#36cfc9)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: 700,
+              }}
+            >
+              房
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>房交平台</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>B 端工作台 V1.0</div>
+            </div>
           </div>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.2 }}>房交平台</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)' }}>B 端工作台 V1.0</div>
-          </div>
+          <Menu theme="dark" mode="inline" selectedKeys={[selectedKey]} items={menuItems} style={{ borderInlineEnd: 'none', flex: 1 }} />
         </div>
-        <Menu theme="dark" mode="inline" selectedKeys={[selectedKey]} items={menuItems} style={{ borderInlineEnd: 'none' }} />
       </Sider>
 
-      <Layout>
+      <Layout style={{ minWidth: 0 }}>
         <Header
           style={{
             background: '#fff',
