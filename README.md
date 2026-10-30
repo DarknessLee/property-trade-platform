@@ -170,6 +170,13 @@ npm run dev          # 并行启动 API(3000) 与 Web(5173)
 | [DECISIONS.md](DECISIONS.md) | 关键决策记录 |
 | [PLAN-MATRIX.md](PLAN-MATRIX.md) | 方案要求 vs 实现状态追踪 |
 
+## 常见问题（FAQ）
+
+- **开发模式下接口会被调用两次吗？** 不会。项目已移除 `React.StrictMode`（D17）。StrictMode 会在开发模式故意双次挂载副作用，导致 Network 重复请求；生产构建不受影响。
+- **页面数据不对/演示数据被改乱？** 执行 `npm run db:reset` 恢复种子数据（会重建 SQLite）。
+- **构建报 esbuild 临时文件 `Access is denied`？** 本机安全软件/ACL 限制 `%TEMP%` 时，先 `$env:TEMP="$PWD\.tmp"; $env:TMP="$env:TEMP"`（目录已 gitignore），再执行构建。
+- **端口被占用？** API 默认 3000、Web 5173；先结束残留 node 进程或改 `PORT`/`--port`。
+
 ## 边界与不做
 
 - 不做软著登记材料（D08）：不生成 60 页源码/手册/申请表。

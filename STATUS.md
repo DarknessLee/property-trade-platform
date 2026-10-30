@@ -11,7 +11,7 @@
   - `npm run screenshots`：25 张（最终 UI + 最终种子）
   - `npm run check:docs`：103 项通过（39 条本地链接、25 张截图、名称/版本、阶段报告）
   - `npm run verify`：全绿
-- 环境基线：Windows；Node v24.22.0；npm 11.19.1（npm workspaces）；git 2.56.0；Playwright Chromium 156；**须使用完全权限**（沙箱下 pwsh 启动失败 0xC0000142）
+- 环境基线：Windows；Node v24.22.0；npm 11.19.1（npm workspaces）；git 2.56.0；Playwright Chromium 156；**须使用完全权限**（沙箱下 pwsh 启动失败 0xC0000142）；若本机 `%TEMP%` 下 esbuild 临时文件删除被拒（安全软件/ACL），构建前设 `$env:TEMP="<仓库>\.tmp"`（已 gitignore）
 - 交付范围：6 角色、7 大模块、47 项方案功能逐项追踪（见 PLAN-MATRIX）；外部系统全部本地 Mock
 - 已知简化（边界）：电子签/支付/短信/实名/地图为 Mock；无并发压测与生产级可用性；合同金额强制等于挂牌总价；跨浏览器仅 Chromium 验证
 - 下一步（维护者）：

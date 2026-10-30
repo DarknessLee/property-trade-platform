@@ -1,4 +1,4 @@
-﻿import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 /**
  * M4 E2E：门店与经纪人、业绩统计、实名审核、操作日志、账号权限、财务资金核对。
@@ -22,6 +22,7 @@ test.describe.serial('机构与业绩', () => {
     await expect(page.getByText(/安家地产/).first()).toBeVisible();
     await expect(page.getByText('经纪人团队')).toBeVisible();
     const rows = page.locator('.ant-table-row');
+    await expect(rows.first()).toBeVisible();
     expect(await rows.count()).toBeGreaterThanOrEqual(2);
   });
 

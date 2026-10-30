@@ -18,3 +18,4 @@
 | D14 | 2026-10-28 | 包管理：npm workspaces（pnpm 全局安装被 npm 新版脚本策略阻断）；`package.json` 脚本为唯一入口 | CI/协作统一用 npm | 环境约束 |
 | D15 | 2026-10-29 | **M5 交付完成**：README 为唯一交付入口（25 张最终截图、演示动线、验收命令、边界）；文档收敛至 docs/00–09；`scripts/check-docs.mjs` 纳入 `verify` 门禁；冷启动以 `npm ci` 复现 | 后续改动须重跑 `npm run verify`；截图与文档一致性由脚本校验 | 用户确认继续 M5 |
 | D16 | 2026-10-29 | UI 修复：B 端侧边栏背景随内容高度拉伸（原 `height:100vh` 导致长页面滚动后左侧白色断档），菜单内层 sticky 吸顶 | 影响所有 B 端页面与截图；已重拍 25 张 | 用户反馈截图问题 |
+| D17 | 2026-10-30 | 移除 `React.StrictMode`：开发模式下 StrictMode 会双次挂载副作用，导致页面接口在 Network 中请求两次（生产构建不重复）；已实测 dev 与生产均每次挂载请求 1 次 | 开发/生产行为一致；如未来需恢复 StrictMode，须为各页面请求加去重/AbortController | 用户反馈接口重复调用 |
