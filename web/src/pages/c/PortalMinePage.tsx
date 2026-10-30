@@ -58,6 +58,15 @@ export default function PortalMinePage(): JSX.Element {
   const [contractsLoading, setContractsLoading] = useState(false);
   const [detail, setDetail] = useState<Contract | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [fullFlow, setFullFlow] = useState<{
+    loan: { code: string; status: string; amount: number; bankName: string } | null;
+    escrow: { code: string; status: string; totalAmount: number; releasedAmount: number } | null;
+    materials: Array<{ status: string }>;
+    taxes: Array<{ status: string }>;
+    appointments: Array<{ status: string }>;
+    registration: { status: string } | null;
+    commission: { status: string; totalCommission: number } | null;
+  } | null>(null);
 
   const loadShowings = async (): Promise<void> => {
     setShowingsLoading(true);
@@ -155,8 +164,12 @@ export default function PortalMinePage(): JSX.Element {
 
   const openContract = async (contract: Contract): Promise<void> => {
     try {
-      const data = await apiGet<Contract>(`/contracts/${contract.id}`);
+      const [data, flow] = await Promise.all([
+        apiGet<Contract>(`/contracts/${contract.id}`),
+        apiGet<typeof fullFlow>(`/contracts/${contract.id}/full-flow`).catch(() => null),
+      ]);
       setDetail(data);
+      setFullFlow(flow);
       setDetailOpen(true);
     } catch (error) {
       message.error(errorMessage(error));
@@ -408,6 +421,31 @@ export default function PortalMinePage(): JSX.Element {
             </Descriptions>
             <Title level={5} style={{ marginTop: 16 }}>交易进度</Title>
             <Steps direction="vertical" size="small" items={timelineOf(detail.progress)} />
+            {fullFlow && (
+              <>
+                <Title level={5} style={{ marginTop: 16 }}>交易后链路</Title>
+                <Descriptions column={2} size="small" bordered>
+                  <Descriptions.Item label="贷款">
+                    {fullFlow.loan ? `${fullFlow.loan.bankName} · ${fullFlow.loan.status === 'disbursed' ? '已放款' : fullFlow.loan.status === 'approved' ? '已批贷' : fullFlow.loan.status === 'rejected' ? '已拒绝' : '办理中'}` : '未申请'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="资金监管">
+                    {fullFlow.escrow ? `${fullFlow.escrow.status === 'released' ? '已解冻' : '监管中'} · 已解冻 ${Math.round(fullFlow.escrow.releasedAmount / 10000)} 万 / ${Math.round(fullFlow.escrow.totalAmount / 10000)} 万` : '未开户'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="过户材料">
+                    {fullFlow.materials.length > 0 ? `${fullFlow.materials.filter((item) => item.status === 'verified').length}/${fullFlow.materials.length} 已核验` : '—'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="税费">
+                    {fullFlow.taxes.length > 0 ? `${fullFlow.taxes.filter((item) => item.status === 'paid').length}/${fullFlow.taxes.length} 已缴纳` : '—'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="不动产登记">
+                    {fullFlow.registration ? { submitted: '已提交', accepted: '已受理', registered: '已登簿', completed: '已领证' }[fullFlow.registration.status] ?? fullFlow.registration.status : '未提交'}
+                  </Descriptions.Item>
+                  <Descriptions.Item label="佣金结算">
+                    {fullFlow.commission ? `${fullFlow.commission.status === 'paid' ? '已支付' : fullFlow.commission.status === 'confirmed' ? '已确认' : '待确认'} · ${fullFlow.commission.totalCommission.toLocaleString()} 元` : '未结算'}
+                  </Descriptions.Item>
+                </Descriptions>
+              </>
+            )}
             <Space style={{ marginTop: 12 }}>
               {['draft', 'pending'].includes(detail.signStatus) && (
                 <Button type="primary" onClick={() => void signContract()} data-testid="btn-sign-contract-customer">确认签署</Button>

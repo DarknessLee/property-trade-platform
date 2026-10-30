@@ -205,4 +205,40 @@ test.describe('角色截图', () => {
     await page.locator('.ant-table-row').first().waitFor();
     await shot(page, '27-B端-管理员-房源咨询');
   });
+
+  test('28-B端-管理员-贷款管理', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/loans');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '28-B端-管理员-贷款管理');
+  });
+
+  test('29-B端-财务-资金监管', async ({ page }) => {
+    await login(page, '13800000002');
+    await page.goto('/admin/escrows');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '29-B端-财务-资金监管');
+  });
+
+  test('30-B端-管理员-过户管理', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/transfers');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '30-B端-管理员-过户管理');
+  });
+
+  test('31-B端-财务-佣金结算', async ({ page }) => {
+    await login(page, '13800000002');
+    await page.goto('/admin/commissions');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '31-B端-财务-佣金结算');
+  });
+
+  test('32-B端-管理员-业绩看板-区域行情', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/stats');
+    await page.getByRole('tab', { name: '区域行情' }).click();
+    await page.getByTestId('stats-market-card').waitFor();
+    await shot(page, '32-B端-管理员-业绩看板-区域行情');
+  });
 });

@@ -1,4 +1,4 @@
-﻿import { Controller, Get, Injectable, Module, Query } from '@nestjs/common';
+import { Controller, Get, Injectable, Module, Query } from '@nestjs/common';
 import dayjs from 'dayjs';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
@@ -124,6 +124,118 @@ export class StatsService {
     }
     return ranking.sort((a, b) => b.dealAmount - a.dealAmount || b.showingCount - a.showingCount);
   }
+
+  /** 区域行情：各区在售量、均价、成交量与成交金额 */
+  async market(user: AuthUser): Promise<unknown[]> {
+    const scope = await this.resolveStatsScope(user);
+    const listingWhere = scope.agentId
+      ? { isDeleted: false, agentId: scope.agentId }
+      : scope.all
+        ? { isDeleted: false }
+        : { isDeleted: false, agencyId: { in: scope.agencyIds } };
+    const contractWhere = scope.agentId
+      ? { isDeleted: false, agentId: scope.agentId, signStatus: 'signed' }
+      : scope.all
+        ? { isDeleted: false, signStatus: 'signed' }
+        : { isDeleted: false, signStatus: 'signed', agencyId: { in: scope.agencyIds } };
+    const [listings, contracts] = await Promise.all([
+      this.prisma.houseListing.findMany({
+        where: { ...listingWhere, status: 'on_sale' },
+        select: { unitPrice: true, community: { select: { district: true } } },
+      }),
+      this.prisma.contract.findMany({
+        where: contractWhere,
+        select: { amount: true, listing: { select: { community: { select: { district: true } } } } },
+      }),
+    ]);
+    const districts = Array.from(new Set([...listings.map((item) => item.community.district), ...contracts.map((item) => item.listing.community.district)]));
+    return districts.sort().map((district) => {
+      const districtListings = listings.filter((item) => item.community.district === district);
+      const districtContracts = contracts.filter((item) => item.listing.community.district === district);
+      const dealAmount = districtContracts.reduce((sum, item) => sum + item.amount, 0);
+      return {
+        district,
+        onSaleCount: districtListings.length,
+        avgUnitPrice: districtListings.length ? Math.round(districtListings.reduce((sum, item) => sum + item.unitPrice, 0) / districtListings.length) : 0,
+        signedCount: districtContracts.length,
+        dealAmount,
+        avgDealAmount: districtContracts.length ? Math.round(dealAmount / districtContracts.length) : 0,
+      };
+    });
+  }
+
+  /** 客群画像：预算段、等级、类型、热门标签 */
+  async customers(user: AuthUser): Promise<unknown> {
+    const scope = await this.resolveStatsScope(user);
+    const where = scope.agentId
+      ? { isDeleted: false, agentId: scope.agentId }
+      : scope.all
+        ? { isDeleted: false }
+        : { isDeleted: false, agencyId: { in: scope.agencyIds } };
+    const rows = await this.prisma.customer.findMany({ where, select: { type: true, level: true, budgetMax: true, tagsJson: true } });
+    const buyers = rows.filter((item) => item.type === 'buyer');
+    const segments = [
+      { label: '200 万以下', min: 0, max: 2_000_000 },
+      { label: '200-300 万', min: 2_000_000, max: 3_000_000 },
+      { label: '300-500 万', min: 3_000_000, max: 5_000_000 },
+      { label: '500 万以上', min: 5_000_000, max: Number.MAX_SAFE_INTEGER },
+    ];
+    const tagCount = new Map<string, number>();
+    for (const row of rows) {
+      try {
+        for (const tag of JSON.parse(row.tagsJson) as string[]) tagCount.set(tag, (tagCount.get(tag) ?? 0) + 1);
+      } catch {
+        // ignore
+      }
+    }
+    return {
+      total: rows.length,
+      types: {
+        buyer: rows.filter((item) => item.type === 'buyer').length,
+        seller: rows.filter((item) => item.type === 'seller').length,
+      },
+      levels: ['A', 'B', 'C'].map((level) => ({ level, count: rows.filter((item) => item.level === level).length })),
+      budgetSegments: segments.map((segment) => ({
+        label: segment.label,
+        count: buyers.filter((item) => (item.budgetMax ?? 0) >= segment.min && (item.budgetMax ?? 0) < segment.max).length,
+      })),
+      topTags: [...tagCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([tag, count]) => ({ tag, count })),
+    };
+  }
+
+  /** 转化漏斗：浏览 → 带看 → 合同发起 → 签约成交 */
+  async funnel(user: AuthUser): Promise<{ stages: Array<{ name: string; value: number }> }> {
+    const scope = await this.resolveStatsScope(user);
+    const listingWhere = scope.agentId
+      ? { isDeleted: false, agentId: scope.agentId }
+      : scope.all
+        ? { isDeleted: false }
+        : { isDeleted: false, agencyId: { in: scope.agencyIds } };
+    const showingWhere = scope.agentId
+      ? { isDeleted: false, agentId: scope.agentId }
+      : scope.all
+        ? { isDeleted: false }
+        : { isDeleted: false, agent: { agencyId: { in: scope.agencyIds } } };
+    const contractWhere = scope.agentId
+      ? { isDeleted: false, agentId: scope.agentId }
+      : scope.all
+        ? { isDeleted: false }
+        : { isDeleted: false, agencyId: { in: scope.agencyIds } };
+    const [listings, showingCount, contractCount, signedCount] = await Promise.all([
+      this.prisma.houseListing.findMany({ where: listingWhere, select: { viewCount: true } }),
+      this.prisma.showing.count({ where: showingWhere }),
+      this.prisma.contract.count({ where: contractWhere }),
+      this.prisma.contract.count({ where: { ...contractWhere, signStatus: 'signed' } }),
+    ]);
+    return {
+      stages: [
+        { name: '房源浏览', value: listings.reduce((sum, item) => sum + item.viewCount, 0) },
+        { name: '带看', value: showingCount },
+        { name: '合同发起', value: contractCount },
+        { name: '签约成交', value: signedCount },
+      ],
+    };
+  }
 }
 
 @Controller('stats')
@@ -147,6 +259,24 @@ export class StatsController {
   @Roles('agent', 'store_manager', 'finance', 'admin')
   ranking(@CurrentUser() user: AuthUser): Promise<unknown[]> {
     return this.stats.ranking(user);
+  }
+
+  @Get('market')
+  @Roles('agent', 'store_manager', 'finance', 'admin')
+  market(@CurrentUser() user: AuthUser): Promise<unknown[]> {
+    return this.stats.market(user);
+  }
+
+  @Get('customers')
+  @Roles('agent', 'store_manager', 'finance', 'admin')
+  customers(@CurrentUser() user: AuthUser): Promise<unknown> {
+    return this.stats.customers(user);
+  }
+
+  @Get('funnel')
+  @Roles('agent', 'store_manager', 'finance', 'admin')
+  funnel(@CurrentUser() user: AuthUser): Promise<{ stages: Array<{ name: string; value: number }> }> {
+    return this.stats.funnel(user);
   }
 }
 

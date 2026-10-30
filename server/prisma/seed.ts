@@ -91,6 +91,16 @@ const SELLER_NAMES = ['高强', '罗雪', '梁栋', '宋佳', '唐勇', '韩冰'
 
 async function main(): Promise<void> {
   console.log('[seed] 清理旧数据 ...');
+  await prisma.commissionAllocation.deleteMany();
+  await prisma.commissionSettlement.deleteMany();
+  await prisma.registrationApplication.deleteMany();
+  await prisma.transferAppointment.deleteMany();
+  await prisma.taxRecord.deleteMany();
+  await prisma.materialChecklist.deleteMany();
+  await prisma.escrowTransaction.deleteMany();
+  await prisma.escrowAccount.deleteMany();
+  await prisma.appraisalOrder.deleteMany();
+  await prisma.loanApplication.deleteMany();
   await prisma.consultation.deleteMany();
   await prisma.approvalRequest.deleteMany();
   await prisma.priceHistory.deleteMany();
@@ -641,6 +651,244 @@ async function main(): Promise<void> {
     });
   }
 
+  // ---------- E2：交易后链路（贷款/评估/资金监管/过户材料/税费/预约/登记/佣金） ----------
+  const signedContracts = contracts.filter((item) => item.signStatus === 'signed');
+  const agentById = new Map(agents.map((item) => [item.id, item]));
+  const agentUserMap = new Map(agentUsers.map((item) => [item.id, item]));
+  const agencyNameById = new Map([[hq.id, hq.name], ...stores.map((item) => [item.id, item.name] as const)]);
+  const storeIndexById = new Map(stores.map((item, index) => [item.id, index]));
+  const bankNames = ['江州银行·城东支行', '江州农商行·高新支行', '江城银行·滨江支行'];
+  const appraisalInstitutions = ['江城正衡评估有限公司', '江州华信评估事务所'];
+  const materialNames = ['网签买卖合同', '买卖双方身份证', '户口本', '婚姻状况证明', '不动产权证', '完税凭证'];
+
+  for (let i = 0; i < signedContracts.length; i += 1) {
+    const contract = signedContracts[i];
+    const listing = listings.find((item) => item.id === contract.listingId) as (typeof listings)[number];
+    const agent = agentById.get(contract.agentId) as (typeof agents)[number];
+    const agentUser = agentUserMap.get(agent.userId) as (typeof agentUsers)[number];
+    const nodes = await prisma.transactionProgress.findMany({ where: { contractId: contract.id } });
+    const doneCount = nodes.filter((node) => node.status === 'done').length;
+    const signedAt = contract.signedAt ?? daysAgo(20);
+    const storeIndex = storeIndexById.get(contract.agencyId) ?? 0;
+    const manager = managers[storeIndex % managers.length];
+
+    // 贷款（前 4 单）：状态覆盖已放款/已批贷/已提交/已拒绝
+    let loanId: string | null = null;
+    if (i < 4) {
+      const statuses = ['disbursed', 'approved', 'submitted', 'rejected'] as const;
+      const status = statuses[i];
+      const loanAmount = Math.round(contract.amount * 0.65);
+      const submittedAt = dayjs(signedAt).add(1, 'day').toDate();
+      const approvedAt = status === 'approved' || status === 'disbursed' ? dayjs(signedAt).add(6, 'day').toDate() : null;
+      const loan = await prisma.loanApplication.create({
+        data: {
+          code: `LOAN${dayjs().format('YYYY')}${pad(i + 1, 6)}`,
+          contractId: contract.id,
+          bankName: bankNames[i % bankNames.length],
+          productName: ['个人二手住房按揭贷', '公积金组合贷', '个人二手住房按揭贷', '个人二手住房按揭贷'][i % 4],
+          amount: loanAmount,
+          termMonths: [240, 360, 300, 240][i % 4],
+          annualRate: Number((3.85 + i * 0.1).toFixed(2)),
+          status,
+          documentsJson: JSON.stringify([
+            { name: '身份证', status: 'verified' },
+            { name: '收入证明', status: status === 'submitted' ? 'uploaded' : 'verified' },
+            { name: '银行流水', status: status === 'submitted' ? 'pending' : 'verified' },
+            { name: '征信授权书', status: 'verified' },
+          ]),
+          rejectReason: status === 'rejected' ? '近半年存在逾期记录，暂不符合准入' : null,
+          submittedAt,
+          approvedAt,
+          disbursedAt: status === 'disbursed' ? dayjs(signedAt).add(12, 'day').toDate() : null,
+        },
+      });
+      loanId = loan.id;
+      await prisma.appraisalOrder.create({
+        data: {
+          code: `PG${dayjs().format('YYYY')}${pad(i + 1, 6)}`,
+          contractId: contract.id,
+          loanId: loan.id,
+          institutionName: appraisalInstitutions[i % appraisalInstitutions.length],
+          appraiserName: ['评估师·吴工', '评估师·郑工'][i % 2],
+          appointmentAt: dayjs(signedAt).add(2, 'day').toDate(),
+          status: status === 'submitted' ? 'visiting' : status === 'rejected' ? 'reported' : 'reported',
+          appraisedValue: status === 'submitted' ? null : contract.amount,
+          reportNo: status === 'submitted' ? null : `PGBG${dayjs().format('YYYY')}${pad(i + 1, 5)}`,
+          fee: 800,
+        },
+      });
+    }
+
+    // 资金监管账户 + 流水（所有已签署合同）
+    const depositPaid = Math.round(contract.amount * 0.3);
+    const released = doneCount >= 4 ? Math.round(contract.amount * 0.2) : 0;
+    const releaseSum = (doneCount >= 2 ? Math.round(contract.amount * 0.1) : 0) + (doneCount >= 4 ? Math.round(contract.amount * 0.1) : 0);
+    const escrow = await prisma.escrowAccount.create({
+      data: {
+        code: `ESC${dayjs().format('YYYY')}${pad(i + 1, 6)}`,
+        contractId: contract.id,
+        bankName: bankNames[i % bankNames.length],
+        accountNoMasked: `6222 **** **** ${pad(1200 + i, 4)}`,
+        agreementNo: `JGXY${dayjs().format('YYYY')}${pad(i + 1, 4)}`,
+        totalAmount: contract.amount,
+        releasedAmount: releaseSum,
+        status: doneCount >= 4 ? 'released' : 'active',
+      },
+    });
+    await prisma.escrowTransaction.create({
+      data: {
+        escrowId: escrow.id,
+        type: 'deposit',
+        amount: depositPaid,
+        tradeNo: `ESC${dayjs().format('YYYY')}${pad(i * 5 + 1, 8)}`,
+        remark: '买方首付款存入监管账户',
+        createdAt: dayjs(signedAt).add(2, 'day').toDate(),
+      },
+    });
+    if (doneCount >= 2) {
+      await prisma.escrowTransaction.create({
+        data: {
+          escrowId: escrow.id,
+          type: 'release',
+          amount: Math.round(contract.amount * 0.1),
+          nodeType: 'tax',
+          tradeNo: `ESC${dayjs().format('YYYY')}${pad(i * 5 + 2, 8)}`,
+          remark: '缴税节点完成，解冻部分资金用于缴税',
+          createdAt: dayjs(signedAt).add(8, 'day').toDate(),
+        },
+      });
+    }
+    if (released > 0) {
+      await prisma.escrowTransaction.create({
+        data: {
+          escrowId: escrow.id,
+          type: 'release',
+          amount: Math.round(contract.amount * 0.1),
+          nodeType: 'transfer',
+          tradeNo: `ESC${dayjs().format('YYYY')}${pad(i * 5 + 3, 8)}`,
+          remark: '过户完成，解冻尾款',
+          createdAt: dayjs(signedAt).add(20, 'day').toDate(),
+        },
+      });
+      await prisma.escrowTransaction.create({
+        data: {
+          escrowId: escrow.id,
+          type: 'transfer',
+          amount: released,
+          tradeNo: `ESC${dayjs().format('YYYY')}${pad(i * 5 + 4, 8)}`,
+          remark: '解冻资金划转卖方账户',
+          createdAt: dayjs(signedAt).add(21, 'day').toDate(),
+        },
+      });
+    }
+
+    // 过户材料清单
+    for (let m = 0; m < materialNames.length; m += 1) {
+      const status = m < Math.max(1, doneCount + 1) ? 'verified' : m < doneCount + 3 ? 'uploaded' : 'pending';
+      await prisma.materialChecklist.create({
+        data: {
+          contractId: contract.id,
+          name: materialNames[m],
+          status,
+          remark: status === 'verified' ? '已核验' : status === 'uploaded' ? '待核验' : null,
+        },
+      });
+    }
+
+    // 税费（契税/增值税/个税）
+    const taxes = [
+      { taxType: 'deed', amount: Math.round(contract.amount * 0.015) },
+      { taxType: 'vat', amount: Math.round(contract.amount * 0.053) },
+      { taxType: 'income', amount: Math.round(contract.amount * 0.01) },
+    ];
+    for (let t = 0; t < taxes.length; t += 1) {
+      const paid = doneCount >= 3;
+      await prisma.taxRecord.create({
+        data: {
+          contractId: contract.id,
+          taxType: taxes[t].taxType,
+          amount: taxes[t].amount,
+          status: paid ? 'paid' : 'pending',
+          receiptNo: paid ? `WS${dayjs().format('YYYY')}${pad(i * 3 + t + 1, 6)}` : null,
+          paidAt: paid ? dayjs(signedAt).add(10 + t, 'day').toDate() : null,
+        },
+      });
+    }
+
+    // 政务预约（缴税 + 过户）
+    await prisma.transferAppointment.create({
+      data: {
+        code: `YY${dayjs().format('YYYY')}${pad(i * 2 + 1, 6)}`,
+        contractId: contract.id,
+        type: 'tax',
+        appointmentAt: dayjs(signedAt).add(9, 'day').toDate(),
+        hallName: '江州市政务服务中心·税务窗口',
+        appointmentNo: `SW${dayjs(signedAt).format('YYYYMMDD')}${pad(i + 1, 4)}`,
+        status: doneCount >= 3 ? 'done' : 'booked',
+      },
+    });
+    await prisma.transferAppointment.create({
+      data: {
+        code: `YY${dayjs().format('YYYY')}${pad(i * 2 + 2, 6)}`,
+        contractId: contract.id,
+        type: 'transfer',
+        appointmentAt: dayjs(signedAt).add(16, 'day').toDate(),
+        hallName: '江州市不动产登记中心·城东大厅',
+        appointmentNo: `BDC${dayjs(signedAt).format('YYYYMMDD')}${pad(i + 1, 4)}`,
+        status: doneCount >= 4 ? 'done' : 'booked',
+      },
+    });
+
+    // 不动产登记
+    const registrationStatus = doneCount >= 4 ? 'registered' : doneCount >= 3 ? 'accepted' : 'submitted';
+    await prisma.registrationApplication.create({
+      data: {
+        code: `REG${dayjs().format('YYYY')}${pad(i + 1, 6)}`,
+        contractId: contract.id,
+        status: registrationStatus,
+        acceptNo: registrationStatus === 'submitted' ? null : `SL${dayjs().format('YYYY')}${pad(i + 1, 6)}`,
+        acceptedAt: registrationStatus === 'submitted' ? null : dayjs(signedAt).add(17, 'day').toDate(),
+        completedAt: registrationStatus === 'registered' ? dayjs(signedAt).add(25, 'day').toDate() : null,
+        remark: registrationStatus === 'registered' ? '已登簿，等待领证' : null,
+      },
+    });
+
+    // 佣金结算（分摊合计 = 佣金总额）
+    const totalCommission = contract.commissionAmount;
+    const allocations: Array<{ role: string; name: string; rate: number }> = [
+      { role: 'listing_agent', name: agentUser.name, rate: 0.6 },
+      { role: 'co_agent', name: `${agentUser.name}协作`, rate: 0.15 },
+      { role: 'store', name: agencyNameById.get(contract.agencyId) ?? '门店', rate: 0.2 },
+      { role: 'finance', name: '财务专员·邱丽', rate: 0.05 },
+    ];
+    const commissionAmounts = allocations.map((item) => Math.round(totalCommission * item.rate));
+    commissionAmounts[commissionAmounts.length - 1] = totalCommission - commissionAmounts.slice(0, -1).reduce((sum, item) => sum + item, 0);
+    const settlementStatus = i % 3 === 0 ? 'paid' : i % 3 === 1 ? 'confirmed' : 'pending';
+    const settlement = await prisma.commissionSettlement.create({
+      data: {
+        code: `CM${dayjs().format('YYYY')}${pad(i + 1, 6)}`,
+        contractId: contract.id,
+        ruleName: '标准佣金分成规则 V1.0',
+        baseAmount: contract.amount,
+        totalCommission,
+        status: settlementStatus,
+        confirmedAt: settlementStatus === 'pending' ? null : dayjs(signedAt).add(28, 'day').toDate(),
+        paidAt: settlementStatus === 'paid' ? dayjs(signedAt).add(30, 'day').toDate() : null,
+        allocations: {
+          create: allocations.map((item, index) => ({
+            role: item.role,
+            name: item.name,
+            rate: item.rate,
+            amount: commissionAmounts[index],
+          })),
+        },
+      },
+    });
+    void manager;
+    void settlement;
+    void loanId;
+  }
+
   // 房源委托协议 / 产权照片附件
   for (let i = 0; i < 12; i += 1) {
     const listing = listings[i];
@@ -804,6 +1052,8 @@ async function main(): Promise<void> {
   console.log(`  资金记录 ${await prisma.paymentRecord.count()} / 通知 ${await prisma.notification.count()}`);
   console.log(`  操作日志 ${await prisma.operationLog.count()} / 字典 ${await prisma.dataDict.count()}`);
   console.log(`  价格历史 ${await prisma.priceHistory.count()} / 审批 ${await prisma.approvalRequest.count()} / 咨询 ${await prisma.consultation.count()}`);
+  console.log(`  贷款 ${await prisma.loanApplication.count()} / 评估 ${await prisma.appraisalOrder.count()} / 监管账户 ${await prisma.escrowAccount.count()}（流水 ${await prisma.escrowTransaction.count()}）`);
+  console.log(`  材料 ${await prisma.materialChecklist.count()} / 税费 ${await prisma.taxRecord.count()} / 预约 ${await prisma.transferAppointment.count()} / 登记 ${await prisma.registrationApplication.count()} / 佣金 ${await prisma.commissionSettlement.count()}（分摊 ${await prisma.commissionAllocation.count()}）`);
 }
 
 main()

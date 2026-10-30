@@ -76,6 +76,30 @@ export class ContractsService {
     return this.toDetailDto(row);
   }
 
+  /** 交易全流程：贷款/评估/资金监管/过户材料/税费/预约/登记/佣金（E2） */
+  async fullFlow(user: AuthUser, id: string): Promise<unknown> {
+    const row = await this.findScoped(user, id);
+    const [loan, escrow, materials, taxes, appointments, registration, commission] = await Promise.all([
+      this.prisma.loanApplication.findFirst({ where: { contractId: id }, include: { appraisals: { orderBy: { createdAt: 'asc' } } }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.escrowAccount.findUnique({ where: { contractId: id }, include: { transactions: { orderBy: { createdAt: 'asc' } } } }),
+      this.prisma.materialChecklist.findMany({ where: { contractId: id }, orderBy: { createdAt: 'asc' } }),
+      this.prisma.taxRecord.findMany({ where: { contractId: id } }),
+      this.prisma.transferAppointment.findMany({ where: { contractId: id }, orderBy: { appointmentAt: 'asc' } }),
+      this.prisma.registrationApplication.findUnique({ where: { contractId: id } }),
+      this.prisma.commissionSettlement.findUnique({ where: { contractId: id }, include: { allocations: true } }),
+    ]);
+    return {
+      contract: this.toDetailDto(row),
+      loan,
+      escrow,
+      materials,
+      taxes,
+      appointments,
+      registration,
+      commission,
+    };
+  }
+
   async create(user: AuthUser, dto: CreateContractDto): Promise<unknown> {
     const listing = await this.prisma.houseListing.findFirst({
       where: { id: dto.listingId, isDeleted: false },

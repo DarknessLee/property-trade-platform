@@ -22,7 +22,7 @@ function isValidIdCard(id: string): boolean {
 }
 
 async function main(): Promise<void> {
-  const [users, realNames, agencies, agents, communities, listings, customers, showings, contracts, progresses, payments, dicts, priceHistories, approvals, consultations] =
+  const [users, realNames, agencies, agents, communities, listings, customers, showings, contracts, progresses, payments, dicts, priceHistories, approvals, consultations, loans, appraisals, escrows, escrowTransactions, materials, taxes, appointments, registrations, commissions, allocations] =
     await Promise.all([
       prisma.user.findMany(),
       prisma.realNameAuth.findMany(),
@@ -39,6 +39,16 @@ async function main(): Promise<void> {
       prisma.priceHistory.findMany(),
       prisma.approvalRequest.findMany(),
       prisma.consultation.findMany(),
+      prisma.loanApplication.findMany(),
+      prisma.appraisalOrder.findMany(),
+      prisma.escrowAccount.findMany(),
+      prisma.escrowTransaction.findMany(),
+      prisma.materialChecklist.findMany(),
+      prisma.taxRecord.findMany(),
+      prisma.transferAppointment.findMany(),
+      prisma.registrationApplication.findMany(),
+      prisma.commissionSettlement.findMany(),
+      prisma.commissionAllocation.findMany(),
     ]);
 
   // ---------- 数量 ----------
@@ -179,6 +189,40 @@ async function main(): Promise<void> {
   }));
   check('咨询.状态与回复一致', consultations.every((c) => (c.status === 'replied' ? Boolean(c.replyContent && c.repliedAt) : !c.replyContent && !c.repliedAt)));
   check('咨询.留言人与经纪人不同', consultations.every((c) => c.fromUserId !== c.toUserId));
+
+  // ---------- E2 交易后链路（贷款/评估/监管/过户/佣金） ----------
+  const contractById = new Map(contracts.map((c) => [c.id, c]));
+  check('数量.贷款申请', loans.length === 4, `实际 ${loans.length}`);
+  check('数量.评估委托', appraisals.length === 4, `实际 ${appraisals.length}`);
+  check('数量.监管账户', escrows.length === 7, `实际 ${escrows.length}`);
+  check('数量.过户材料', materials.length === 42, `实际 ${materials.length}`);
+  check('数量.税费记录', taxes.length === 21, `实际 ${taxes.length}`);
+  check('数量.政务预约', appointments.length === 14, `实际 ${appointments.length}`);
+  check('数量.登记申请', registrations.length === 7, `实际 ${registrations.length}`);
+  check('数量.佣金结算', commissions.length === 7, `实际 ${commissions.length}`);
+  check('数量.佣金分摊', allocations.length === 28, `实际 ${allocations.length}`);
+  check('编码.贷款/评估/监管/预约/登记/佣金编号', loans.every((l) => /^LOAN\d{10}$/.test(l.code)) && appraisals.every((a) => /^PG\d{10}$/.test(a.code)) && escrows.every((e) => /^ESC\d{10}$/.test(e.code)) && appointments.every((a) => /^YY\d{10}$/.test(a.code)) && registrations.every((r) => /^REG\d{10}$/.test(r.code)) && commissions.every((c) => /^CM\d{10}$/.test(c.code)));
+  check('唯一性.监管账户与合同一对一', new Set(escrows.map((e) => e.contractId)).size === escrows.length);
+  check('关系.交易后链路归属已签署合同', [...loans, ...appraisals, ...escrows, ...materials, ...taxes, ...appointments, ...registrations, ...commissions].every((row) => contractById.get((row as { contractId: string }).contractId)?.signStatus === 'signed'));
+  check('金额.贷款金额<=合同金额', loans.every((l) => Boolean(contractById.get(l.contractId)) && l.amount <= (contractById.get(l.contractId)?.amount ?? 0)));
+  check('状态.贷款状态与时间一致', loans.every((l) => {
+    if (l.status === 'rejected') return Boolean(l.rejectReason);
+    if (['approved', 'disbursed'].includes(l.status)) return Boolean(l.approvedAt);
+    if (l.status === 'disbursed') return Boolean(l.disbursedAt);
+    return true;
+  }));
+  check('状态.评估出报告需有评估值与报告编号', appraisals.filter((a) => a.status === 'reported').every((a) => Boolean(a.appraisedValue && a.reportNo)));
+  check('金额.监管解冻合计=流水解冻之和', escrows.every((e) => {
+    const sum = escrowTransactions.filter((t) => t.escrowId === e.id && t.type === 'release').reduce((acc, t) => acc + t.amount, 0);
+    return e.releasedAmount === sum && e.releasedAmount <= e.totalAmount;
+  }));
+  check('数据.每个监管账户有流水且金额>0', escrows.every((e) => escrowTransactions.filter((t) => t.escrowId === e.id).length > 0 && escrowTransactions.filter((t) => t.escrowId === e.id).every((t) => t.amount > 0)));
+  check('状态.材料/税费/预约/登记状态合法', materials.every((m) => ['pending', 'uploaded', 'verified'].includes(m.status)) && taxes.every((t) => ['pending', 'paid'].includes(t.status)) && appointments.every((a) => ['booked', 'done', 'cancelled'].includes(a.status)) && registrations.every((r) => ['submitted', 'accepted', 'registered', 'completed'].includes(r.status)));
+  check('数据.已缴税有完税凭证', taxes.filter((t) => t.status === 'paid').every((t) => Boolean(t.receiptNo && t.paidAt)));
+  check('金额.佣金总额=合同佣金', commissions.every((c) => c.totalCommission === (contractById.get(c.contractId)?.commissionAmount ?? -1)));
+  check('金额.佣金分摊合计=总额', commissions.every((c) => allocations.filter((a) => a.settlementId === c.id).reduce((sum, a) => sum + a.amount, 0) === c.totalCommission));
+  check('金额.佣金分摊比例合计≈100%', commissions.every((c) => Math.abs(allocations.filter((a) => a.settlementId === c.id).reduce((sum, a) => sum + a.rate, 0) - 1) < 0.001));
+  check('状态.已支付佣金有支付时间', commissions.filter((c) => c.status === 'paid').every((c) => Boolean(c.paidAt && c.confirmedAt)));
 
   // ---------- 结果 ----------
   if (failures.length > 0) {

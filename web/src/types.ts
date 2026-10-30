@@ -324,3 +324,122 @@ export const PROGRESS_STATUS: Record<string, { label: string; color: string }> =
   doing: { label: '进行中', color: 'blue' },
   done: { label: '已完成', color: 'green' },
 };
+
+// ---------- E2：交易后链路 ----------
+export interface ContractLite {
+  id: string;
+  code: string;
+  amount: number;
+  commissionAmount: number;
+  signedAt: string | null;
+  agencyId: string;
+  listing: { id: string; title: string; code?: string; community: { name: string; district: string } };
+  buyerCustomer: { name: string };
+  sellerCustomer: { name: string };
+  agent: { user: { name: string } };
+  agency?: { name: string };
+}
+
+export interface LoanItem {
+  id: string;
+  code: string;
+  bankName: string;
+  productName: string;
+  amount: number;
+  termMonths: number;
+  annualRate: number;
+  status: 'draft' | 'submitted' | 'approved' | 'rejected' | 'disbursed';
+  documents: Array<{ name: string; status: string }>;
+  rejectReason: string | null;
+  submittedAt: string | null;
+  approvedAt: string | null;
+  disbursedAt: string | null;
+  contract: ContractLite;
+  appraisals?: AppraisalItem[];
+}
+
+export interface AppraisalItem {
+  id: string;
+  code: string;
+  institutionName: string;
+  appraiserName: string;
+  appointmentAt: string;
+  status: string;
+  appraisedValue: number | null;
+  reportNo: string | null;
+  fee: number;
+}
+
+export interface EscrowTransactionItem {
+  id: string;
+  type: string;
+  amount: number;
+  nodeType: string | null;
+  tradeNo: string;
+  remark: string | null;
+  createdAt: string;
+}
+
+export interface EscrowItem {
+  id: string;
+  code: string;
+  bankName: string;
+  accountNoMasked: string;
+  agreementNo: string;
+  totalAmount: number;
+  releasedAmount: number;
+  status: string;
+  openedAt: string;
+  contract: ContractLite;
+  transactions: EscrowTransactionItem[];
+}
+
+export interface TransferSummary {
+  contractId: string;
+  code: string;
+  listing: { title: string; community: { name: string; district: string } };
+  signedAt: string | null;
+  materialTotal: number;
+  materialVerified: number;
+  taxTotal: number;
+  taxPaid: number;
+  appointmentDone: number;
+  appointmentTotal: number;
+  registrationStatus: string | null;
+}
+
+export interface TransferDetail {
+  contract: { id: string; code: string; amount: number; signedAt: string | null; listing: { title: string; community: { name: string; district: string } }; buyer: { name: string }; seller: { name: string } };
+  materials: Array<{ id: string; name: string; required: boolean; status: string; remark: string | null }>;
+  taxes: Array<{ id: string; taxType: string; amount: number; status: string; receiptNo: string | null; paidAt: string | null }>;
+  appointments: Array<{ id: string; code: string; type: string; appointmentAt: string; hallName: string; appointmentNo: string; status: string }>;
+  registration: { id: string; code: string; status: string; acceptNo: string | null; acceptedAt: string | null; completedAt: string | null } | null;
+}
+
+export interface CommissionItem {
+  id: string;
+  code: string;
+  ruleName: string;
+  baseAmount: number;
+  totalCommission: number;
+  status: 'pending' | 'confirmed' | 'paid';
+  confirmedAt: string | null;
+  paidAt: string | null;
+  contract: ContractLite;
+  allocations: Array<{ id: string; role: string; name: string; rate: number; amount: number }>;
+}
+
+export const LOAN_STATUS: Record<string, { label: string; color: string }> = {
+  draft: { label: '草稿', color: 'default' },
+  submitted: { label: '已提交', color: 'gold' },
+  approved: { label: '已批贷', color: 'blue' },
+  rejected: { label: '已拒绝', color: 'red' },
+  disbursed: { label: '已放款', color: 'green' },
+};
+
+export const TRANSFER_STATUS: Record<string, { label: string; color: string }> = {
+  submitted: { label: '已提交', color: 'gold' },
+  accepted: { label: '已受理', color: 'blue' },
+  registered: { label: '已登簿', color: 'green' },
+  completed: { label: '已领证', color: 'green' },
+};

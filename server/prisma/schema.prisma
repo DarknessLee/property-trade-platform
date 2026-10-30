@@ -288,6 +288,14 @@ model Contract {
   agency         Agency               @relation(fields: [agencyId], references: [id])
   progress       TransactionProgress[]
   payments       PaymentRecord[]
+  loans          LoanApplication[]
+  appraisals     AppraisalOrder[]
+  escrow         EscrowAccount?
+  materials      MaterialChecklist[]
+  taxes          TaxRecord[]
+  appointments   TransferAppointment[]
+  registration   RegistrationApplication?
+  commission     CommissionSettlement?
 
   @@index([signStatus])
   @@index([listingId])
@@ -459,4 +467,192 @@ model Consultation {
   @@index([status])
   @@index([toUserId])
   @@index([fromUserId])
+}
+
+/// 按揭贷款申请（E2 演示：银行通道 Mock，状态由人工操作驱动）
+model LoanApplication {
+  id            String    @id @default(cuid())
+  code          String    @unique // LOAN2026000001
+  contractId    String
+  bankName      String
+  productName   String
+  amount        Int // 贷款金额（元）
+  termMonths    Int
+  annualRate    Float
+  status        String    @default("draft") // draft 草稿 | submitted 已提交 | approved 已批贷 | rejected 已拒绝 | disbursed 已放款
+  documentsJson String    @default("[]") // [{name,status}]
+  rejectReason  String?
+  submittedAt   DateTime?
+  approvedAt    DateTime?
+  disbursedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  contract  Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  appraisals AppraisalOrder[]
+
+  @@index([status])
+  @@index([contractId])
+}
+
+/// 评估委托（E2 演示）
+model AppraisalOrder {
+  id             String    @id @default(cuid())
+  code           String    @unique // PG2026000001
+  contractId     String
+  loanId         String?
+  institutionName String
+  appraiserName  String
+  appointmentAt  DateTime
+  status         String    @default("pending") // pending 待上门 | visiting 已上门 | reported 已出报告
+  appraisedValue Int?
+  reportNo       String?
+  fee            Int       @default(0)
+  remark         String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  contract Contract         @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  loan     LoanApplication? @relation(fields: [loanId], references: [id])
+
+  @@index([status])
+  @@index([contractId])
+}
+
+/// 资金监管账户（E2 演示：银行监管账户 Mock，资金流水仅记录状态）
+model EscrowAccount {
+  id              String   @id @default(cuid())
+  code            String   @unique // ESC2026000001
+  contractId      String   @unique
+  bankName        String
+  accountNoMasked String
+  agreementNo     String
+  totalAmount     Int
+  releasedAmount  Int      @default(0)
+  status          String   @default("pending") // pending 待开户 | active 监管中 | released 已解冻 | closed 已关闭
+  openedAt        DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  contract     Contract             @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  transactions EscrowTransaction[]
+
+  @@index([status])
+}
+
+/// 资金监管流水
+model EscrowTransaction {
+  id        String   @id @default(cuid())
+  escrowId  String
+  type      String // deposit 存入 | release 解冻 | transfer 划转 | refund 退款
+  amount    Int
+  nodeType  String? // 关联交易进度节点
+  tradeNo   String   @unique
+  remark    String?
+  createdAt DateTime @default(now())
+
+  escrow EscrowAccount @relation(fields: [escrowId], references: [id], onDelete: Cascade)
+
+  @@index([escrowId])
+}
+
+/// 过户材料清单（E2 演示：按交易类型自动生成，逐项上传/核验）
+model MaterialChecklist {
+  id         String   @id @default(cuid())
+  contractId String
+  name       String
+  required   Boolean  @default(true)
+  status     String   @default("pending") // pending 待上传 | uploaded 已上传 | verified 已核验
+  remark     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+}
+
+/// 税费记录（E2 演示：规则简化的税费申报与完税）
+model TaxRecord {
+  id         String    @id @default(cuid())
+  contractId String
+  taxType    String // deed 契税 | vat 增值税 | income 个税
+  amount     Int
+  status     String    @default("pending") // pending 待缴纳 | paid 已缴纳
+  receiptNo  String?
+  paidAt     DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+}
+
+/// 政务预约（缴税/过户）
+model TransferAppointment {
+  id            String   @id @default(cuid())
+  code          String   @unique // YY2026000001
+  contractId    String
+  type          String // tax 缴税 | transfer 过户
+  appointmentAt DateTime
+  hallName      String
+  appointmentNo String
+  status        String   @default("booked") // booked 已预约 | done 已办理 | cancelled 已取消
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+}
+
+/// 不动产登记申请（E2 演示：状态跟踪，不接真实政务接口）
+model RegistrationApplication {
+  id          String    @id @default(cuid())
+  code        String    @unique // REG2026000001
+  contractId  String    @unique
+  status      String    @default("submitted") // submitted 已提交 | accepted 已受理 | registered 已登簿 | completed 已领证
+  acceptNo    String?
+  acceptedAt  DateTime?
+  completedAt DateTime?
+  remark      String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+}
+
+/// 佣金结算单（E2 演示：规则化分成，分摊合计=佣金总额）
+model CommissionSettlement {
+  id              String    @id @default(cuid())
+  code            String    @unique // CM2026000001
+  contractId      String    @unique
+  ruleName        String
+  baseAmount      Int
+  totalCommission Int
+  status          String    @default("pending") // pending 待确认 | confirmed 已确认 | paid 已支付
+  confirmedAt     DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  contract    Contract              @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  allocations CommissionAllocation[]
+
+  @@index([status])
+}
+
+/// 佣金分摊明细
+model CommissionAllocation {
+  id           String @id @default(cuid())
+  settlementId String
+  role         String // listing_agent 房源维护 | co_agent 协作 | store 门店 | finance 财务/平台
+  name         String
+  rate         Float
+  amount       Int
+
+  settlement CommissionSettlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+
+  @@index([settlementId])
 }

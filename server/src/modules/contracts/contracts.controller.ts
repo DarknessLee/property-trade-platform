@@ -35,6 +35,12 @@ export class ContractsController {
     });
   }
 
+  @Get(':id/full-flow')
+  @Roles('agent', 'store_manager', 'finance', 'admin', 'buyer', 'seller')
+  fullFlow(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<unknown> {
+    return this.contracts.fullFlow(user, id);
+  }
+
   @Get(':id')
   @Roles('agent', 'store_manager', 'finance', 'admin', 'buyer', 'seller')
   detail(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<unknown> {
