@@ -13,6 +13,18 @@ export class ListingsController {
     return this.listings.list(user, query);
   }
 
+  @Get('duplicate-check')
+  @Roles('agent', 'store_manager', 'admin')
+  duplicateCheck(
+    @CurrentUser() user: AuthUser,
+    @Query('communityId') communityId?: string,
+    @Query('area') area?: string,
+    @Query('rooms') rooms?: string,
+    @Query('excludeId') excludeId?: string,
+  ): Promise<{ items: Array<{ id: string; code: string; title: string; area: number; totalPrice: number; status: string; agentName: string }> }> {
+    return this.listings.duplicateCheck(user, { communityId, area, rooms, excludeId });
+  }
+
   @Get(':id')
   @Roles('agent', 'store_manager', 'finance', 'admin')
   detail(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<unknown> {

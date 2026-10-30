@@ -91,6 +91,9 @@ const SELLER_NAMES = ['高强', '罗雪', '梁栋', '宋佳', '唐勇', '韩冰'
 
 async function main(): Promise<void> {
   console.log('[seed] 清理旧数据 ...');
+  await prisma.consultation.deleteMany();
+  await prisma.approvalRequest.deleteMany();
+  await prisma.priceHistory.deleteMany();
   await prisma.attachment.deleteMany();
   await prisma.paymentRecord.deleteMany();
   await prisma.transactionProgress.deleteMany();
@@ -357,6 +360,30 @@ async function main(): Promise<void> {
       },
     });
     listings.push(listing);
+  }
+
+  // ---------- 房源价格历史（挂牌与历史调价，供价格走势展示） ----------
+  for (const listing of listings) {
+    if (listing.status === 'pending') continue; // 未挂牌无价格历史
+    const baseDate = listing.listedAt ?? daysAgo(120);
+    const points = listing.area > 120 || listing.code.endsWith('0001') ? 4 : 3;
+    for (let k = 0; k < points; k += 1) {
+      const isLast = k === points - 1;
+      const price = isLast
+        ? listing.totalPrice
+        : Math.round((listing.totalPrice * (0.94 + 0.015 * k)) / 1000) * 1000;
+      const unitPrice = Math.round(price / listing.area);
+      await prisma.priceHistory.create({
+        data: {
+          listingId: listing.id,
+          price,
+          unitPrice,
+          source: 'listing',
+          remark: isLast ? '当前挂牌价' : k === 0 ? '首次挂牌价' : '历史调价',
+          changedAt: dayjs(baseDate).subtract((points - 1 - k) * 30, 'day').toDate(),
+        },
+      });
+    }
   }
 
   // ---------- 客户 ----------
@@ -630,6 +657,103 @@ async function main(): Promise<void> {
     });
   }
 
+  // ---------- 审批申请（演示：在售调价审批） ----------
+  const managerByAgency = new Map<string, { id: string; name: string }>();
+  stores.forEach((store, index) => {
+    managerByAgency.set(store.id, { id: managers[index].id, name: managers[index].name });
+  });
+  const agentUserById = new Map(agentUsers.map((item) => [item.id, item]));
+  const onSaleListings = listings.filter((item) => item.status === 'on_sale');
+  const approvalSeeds: Array<{ index: number; status: 'pending' | 'approved' | 'rejected'; delta: number; reason: string }> = [
+    { index: 0, status: 'pending', delta: -0.03, reason: '业主急售，申请下调挂牌价 3%' },
+    { index: 4, status: 'pending', delta: -0.02, reason: '同户型近期成交价偏低，申请调价' },
+    { index: 9, status: 'pending', delta: 0.02, reason: '小区新增地铁规划，申请上调挂牌价' },
+    { index: 2, status: 'approved', delta: -0.05, reason: '挂牌 60 天未成交，申请降价促成交' },
+    { index: 6, status: 'approved', delta: -0.04, reason: '客户议价，申请调整挂牌价' },
+    { index: 12, status: 'rejected', delta: -0.12, reason: '大幅降价，申请快速成交' },
+  ];
+  const approvalReviewComments: Record<string, string> = {
+    approved: '同意调价，请同步告知意向客户并更新带看反馈。',
+    rejected: '降幅过大，请补充近期带看与成交对比后再提交。',
+  };
+  for (let i = 0; i < approvalSeeds.length; i += 1) {
+    const seedItem = approvalSeeds[i];
+    const listing = onSaleListings[seedItem.index % onSaleListings.length];
+    const agent = agents.find((item) => item.id === listing.agentId) as (typeof agents)[number];
+    const requester = agentUserById.get(agent.userId) as (typeof agentUsers)[number];
+    const oldTotalPrice = listing.totalPrice;
+    const newTotalPrice =
+      seedItem.status === 'approved'
+        ? oldTotalPrice
+        : Math.round((oldTotalPrice * (1 + seedItem.delta)) / 1000) * 1000;
+    const approver = managerByAgency.get(listing.agencyId);
+    const reviewedAt = seedItem.status === 'pending' ? null : daysAgo(randInt(3, 20));
+    await prisma.approvalRequest.create({
+      data: {
+        code: `AP${dayjs().format('YYYY')}${pad(i + 1, 6)}`,
+        type: 'price_change',
+        status: seedItem.status,
+        listingId: listing.id,
+        requesterId: requester.id,
+        requesterName: requester.name,
+        approverId: seedItem.status === 'pending' ? null : approver?.id ?? null,
+        approverName: seedItem.status === 'pending' ? null : approver?.name ?? null,
+        payloadJson: JSON.stringify({
+          oldTotalPrice,
+          newTotalPrice,
+          oldUnitPrice: listing.unitPrice,
+          newUnitPrice: Math.round(newTotalPrice / listing.area),
+          reason: seedItem.reason,
+        }),
+        reason: seedItem.reason,
+        reviewComment: seedItem.status === 'pending' ? null : approvalReviewComments[seedItem.status] ?? null,
+        reviewedAt,
+        createdAt: daysAgo(randInt(6, 30)),
+      },
+    });
+  }
+
+  // ---------- 房源在线咨询（C 端留言 → 经纪人回复） ----------
+  const consultationContents = [
+    '请问这套房源还在售吗？周末方便看房吗？',
+    '房子满几年了？税费大概多少？',
+    '小区停车位紧张吗？物业费多少？',
+    '价格还有商量空间吗？全款可以优惠吗？',
+    '这栋楼是几梯几户？采光怎么样？',
+    '附近有地铁规划吗？通勤到高新区要多久？',
+    '业主为什么卖房？可以配合贷款吗？',
+    '能发一下户型图和小区环境照片吗？',
+  ];
+  const consultReplyContents = [
+    '您好，房源在售，周末可以安排看房，我稍后与您确认具体时间。',
+    '您好，业主满五唯一，契税可按首套核算，详细清单我整理后发您。',
+    '小区地下车位配比 1:1，物业费 3.2 元/㎡/月，居住体验不错。',
+    '价格有一定空间，建议先看房后与业主面谈，我可以帮您争取。',
+    '两梯四户，南北通透，采光从上午十点到下午四点。',
+    '附近规划有地铁 7 号线站点，预计 2027 年通车，通勤约 25 分钟。',
+    '业主置换出售，可以配合贷款，具体首付比例按银行政策执行。',
+    '已为您准备户型图和小区的实拍图，稍后通过消息发给您。',
+  ];
+  for (let i = 0; i < 10; i += 1) {
+    const listing = onSaleListings[(i * 3 + 1) % onSaleListings.length];
+    const agent = agents.find((item) => item.id === listing.agentId) as (typeof agents)[number];
+    const fromUser = buyerUsers[i % buyerUsers.length];
+    const replied = i % 3 !== 0;
+    await prisma.consultation.create({
+      data: {
+        code: `ZX${dayjs().format('YYYY')}${pad(i + 1, 6)}`,
+        listingId: listing.id,
+        fromUserId: fromUser.id,
+        toUserId: agent.userId,
+        content: consultationContents[i % consultationContents.length],
+        replyContent: replied ? consultReplyContents[i % consultReplyContents.length] : null,
+        repliedAt: replied ? daysAgo(randInt(1, 10)) : null,
+        status: replied ? 'replied' : 'pending',
+        createdAt: daysAgo(randInt(3, 20)),
+      },
+    });
+  }
+
   // ---------- 通知 ----------
   const notifUsers = [...buyerUsers, ...sellerUsers, ...agentUsers, ...managers];
   for (let i = 0; i < 40; i += 1) {
@@ -679,6 +803,7 @@ async function main(): Promise<void> {
   console.log(`  合同 ${await prisma.contract.count()} / 进度节点 ${await prisma.transactionProgress.count()}`);
   console.log(`  资金记录 ${await prisma.paymentRecord.count()} / 通知 ${await prisma.notification.count()}`);
   console.log(`  操作日志 ${await prisma.operationLog.count()} / 字典 ${await prisma.dataDict.count()}`);
+  console.log(`  价格历史 ${await prisma.priceHistory.count()} / 审批 ${await prisma.approvalRequest.count()} / 咨询 ${await prisma.consultation.count()}`);
 }
 
 main()

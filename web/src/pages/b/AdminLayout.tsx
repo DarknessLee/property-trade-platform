@@ -10,6 +10,7 @@ import {
   HistoryOutlined,
   HomeOutlined,
   LogoutOutlined,
+  MessageOutlined,
   NodeIndexOutlined,
   TeamOutlined,
   UserOutlined,
@@ -34,6 +35,8 @@ interface MenuDef {
 const MENU_DEFS: MenuDef[] = [
   { key: '/admin', label: '工作台', icon: <DashboardOutlined />, roles: ['agent', 'store_manager', 'finance', 'admin'] },
   { key: '/admin/listings', label: '房源管理', icon: <HomeOutlined />, roles: ['agent', 'store_manager', 'admin'] },
+  { key: '/admin/approvals', label: '审批中心', icon: <AuditOutlined />, roles: ['agent', 'store_manager', 'admin'] },
+  { key: '/admin/consultations', label: '房源咨询', icon: <MessageOutlined />, roles: ['agent', 'store_manager', 'admin'] },
   { key: '/admin/communities', label: '小区字典', icon: <ApartmentOutlined />, roles: ['admin'] },
   { key: '/admin/customers', label: '客户管理', icon: <TeamOutlined />, roles: ['agent', 'store_manager', 'admin'] },
   { key: '/admin/showings', label: '带看管理', icon: <CalendarOutlined />, roles: ['agent', 'store_manager', 'admin'] },

@@ -19,7 +19,8 @@ import StatsPage from './pages/b/StatsPage';
 import LogsPage from './pages/b/LogsPage';
 import FinancePage from './pages/b/FinancePage';
 import UsersPage from './pages/b/UsersPage';
-import PlaceholderPage from './pages/b/PlaceholderPage';
+import ApprovalsPage from './pages/b/ApprovalsPage';
+import ConsultationsPage from './pages/b/ConsultationsPage';
 import PortalMapPage from './pages/c/MapPage';
 import { useAuth } from './auth/AuthContext';
 
@@ -52,6 +53,8 @@ export default function App(): JSX.Element {
       <Route path="/admin" element={<AdminLayout />}>
         <Route index element={<DashboardPage />} />
         <Route path="listings" element={<ListingsPage />} />
+        <Route path="approvals" element={<ApprovalsPage />} />
+        <Route path="consultations" element={<ConsultationsPage />} />
         <Route path="communities" element={<CommunitiesPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="showings" element={<ShowingsPage />} />

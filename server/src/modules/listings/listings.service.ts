@@ -63,7 +63,51 @@ export class ListingsService {
     const row = await this.prisma.houseListing.findFirst({ where: { AND: [where, { id }] }, include: LISTING_INCLUDE });
     if (!row) throw new NotFoundException({ code: ERROR_CODES.NOT_FOUND, message: '房源不存在或无权访问' });
     const attachments = await this.prisma.attachment.findMany({ where: { bizType: 'listing_agreement', bizId: id } });
-    return { ...this.toDto(row), attachments };
+    const priceHistory = await this.prisma.priceHistory.findMany({
+      where: { listingId: id },
+      select: { price: true, unitPrice: true, changedAt: true, source: true, remark: true },
+      orderBy: { changedAt: 'asc' },
+    });
+    return { ...this.toDto(row), attachments, priceHistory };
+  }
+
+  /** 录入前疑似重复房源提示（同小区、面积±2㎡、同户型，非阻断） */
+  async duplicateCheck(
+    user: AuthUser,
+    query: { communityId?: string; area?: string; rooms?: string; excludeId?: string },
+  ): Promise<{ items: Array<{ id: string; code: string; title: string; area: number; totalPrice: number; status: string; agentName: string }> }> {
+    if (!query.communityId || !query.area) return { items: [] };
+    const area = Number(query.area);
+    const rooms = query.rooms ? Number(query.rooms) : undefined;
+    const scope = await this.scopeWhere(user);
+    const rows = await this.prisma.houseListing.findMany({
+      where: {
+        AND: [
+          scope,
+          {
+            communityId: query.communityId,
+            area: { gte: area - 2, lte: area + 2 },
+            status: { in: ['pending', 'on_sale'] },
+            ...(rooms ? { rooms } : {}),
+            ...(query.excludeId ? { id: { not: query.excludeId } } : {}),
+          },
+        ],
+      },
+      include: { agent: { include: { user: { select: { name: true } } } } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+    });
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        code: row.code,
+        title: row.title,
+        area: row.area,
+        totalPrice: row.totalPrice,
+        status: row.status,
+        agentName: row.agent.user.name,
+      })),
+    };
   }
 
   async create(user: AuthUser, dto: CreateListingDto): Promise<unknown> {

@@ -33,6 +33,10 @@ model User {
   customers    Customer[]
   notifications Notification[]
   logs         OperationLog[]
+  approvalsRequested ApprovalRequest[] @relation("ApprovalRequester")
+  approvalsReviewed  ApprovalRequest[] @relation("ApprovalApprover")
+  consultationsFrom  Consultation[]    @relation("ConsultFrom")
+  consultationsTo    Consultation[]    @relation("ConsultTo")
 
   @@index([role])
   @@index([agencyId])
@@ -165,6 +169,10 @@ model HouseListing {
   agency    Agency     @relation(fields: [agencyId], references: [id])
   showings  Showing[]
   contracts Contract[]
+
+  priceHistory PriceHistory[]
+  approvals    ApprovalRequest[]
+  consultations Consultation[]
 
   @@index([status])
   @@index([communityId])
@@ -386,4 +394,69 @@ model Attachment {
   createdAt  DateTime @default(now())
 
   @@index([bizType, bizId])
+}
+
+/// 房源价格历史（每次挂牌/调价留痕，供价格走势展示）
+model PriceHistory {
+  id        String   @id @default(cuid())
+  listingId String
+  price     Int // 总价（元）
+  unitPrice Int
+  source    String   @default("listing") // listing 挂牌 | approval 审批调价
+  remark    String?
+  changedAt DateTime @default(now())
+  createdAt DateTime @default(now())
+
+  listing HouseListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, changedAt])
+}
+
+/// 审批申请（演示：调价审批；type 预留钥匙委托/合同变更）
+model ApprovalRequest {
+  id            String    @id @default(cuid())
+  code          String    @unique // AP2026000001
+  type          String // price_change | key_handover | contract_void
+  status        String    @default("pending") // pending | approved | rejected | cancelled
+  listingId     String?
+  requesterId   String
+  requesterName String
+  approverId    String?
+  approverName  String?
+  payloadJson   String    @default("{}")
+  reason        String    @default("")
+  reviewComment String?
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  listing   HouseListing? @relation(fields: [listingId], references: [id])
+  requester User          @relation("ApprovalRequester", fields: [requesterId], references: [id])
+  approver  User?         @relation("ApprovalApprover", fields: [approverId], references: [id])
+
+  @@index([status])
+  @@index([listingId])
+}
+
+/// 房源在线咨询留言（C 端留言 → 经纪人回复，演示版为一问一答）
+model Consultation {
+  id           String    @id @default(cuid())
+  code         String    @unique // ZX2026000001
+  listingId    String
+  fromUserId   String
+  toUserId     String
+  content      String
+  replyContent String?
+  repliedAt    DateTime?
+  status       String    @default("pending") // pending | replied | closed
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  listing  HouseListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  fromUser User         @relation("ConsultFrom", fields: [fromUserId], references: [id])
+  toUser   User         @relation("ConsultTo", fields: [toUserId], references: [id])
+
+  @@index([status])
+  @@index([toUserId])
+  @@index([fromUserId])
 }

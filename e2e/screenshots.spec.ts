@@ -191,4 +191,18 @@ test.describe('角色截图', () => {
     await page.locator('.ant-table-row').first().waitFor();
     await shot(page, '25-B端-管理员-账号权限');
   });
+
+  test('26-B端-店长-审批中心', async ({ page }) => {
+    await login(page, '13800000003');
+    await page.goto('/admin/approvals');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '26-B端-店长-审批中心');
+  });
+
+  test('27-B端-管理员-房源咨询', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/consultations');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '27-B端-管理员-房源咨询');
+  });
 });

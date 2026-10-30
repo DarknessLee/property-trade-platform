@@ -22,7 +22,7 @@ function isValidIdCard(id: string): boolean {
 }
 
 async function main(): Promise<void> {
-  const [users, realNames, agencies, agents, communities, listings, customers, showings, contracts, progresses, payments, dicts] =
+  const [users, realNames, agencies, agents, communities, listings, customers, showings, contracts, progresses, payments, dicts, priceHistories, approvals, consultations] =
     await Promise.all([
       prisma.user.findMany(),
       prisma.realNameAuth.findMany(),
@@ -36,6 +36,9 @@ async function main(): Promise<void> {
       prisma.transactionProgress.findMany(),
       prisma.paymentRecord.findMany(),
       prisma.dataDict.findMany(),
+      prisma.priceHistory.findMany(),
+      prisma.approvalRequest.findMany(),
+      prisma.consultation.findMany(),
     ]);
 
   // ---------- 数量 ----------
@@ -144,6 +147,38 @@ async function main(): Promise<void> {
   check('数据.默认未软删除', listings.every((l) => !l.isDeleted) && contracts.every((c) => !c.isDeleted));
   check('字典.数量', dicts.length >= 40, `实际 ${dicts.length}`);
   check('数据.资金记录有唯一流水号', new Set(payments.map((p) => p.tradeNo)).size === payments.length);
+
+  // ---------- 价格历史 / 审批 / 咨询（E1 增强） ----------
+  const listingsById = new Map(listings.map((l) => [l.id, l]));
+  check('数量.价格历史', priceHistories.length >= 100, `实际 ${priceHistories.length}`);
+  check('数量.审批申请', approvals.length === 6, `实际 ${approvals.length}`);
+  check('数量.在线咨询', consultations.length === 10, `实际 ${consultations.length}`);
+  check('编码.审批编号格式', approvals.every((a) => /^AP\d{10}$/.test(a.code)));
+  check('编码.咨询编号格式', consultations.every((c) => /^ZX\d{10}$/.test(c.code)));
+  check('唯一性.审批编号', new Set(approvals.map((a) => a.code)).size === approvals.length);
+  check('唯一性.咨询编号', new Set(consultations.map((c) => c.code)).size === consultations.length);
+  check('价格历史.每条房源有历史', listings.filter((l) => l.status !== 'pending').every((l) => priceHistories.some((h) => h.listingId === l.id)));
+  check('价格历史.最后一条=当前挂牌价', listings.filter((l) => l.status !== 'pending').every((l) => {
+    const rows = priceHistories.filter((h) => h.listingId === l.id).sort((a, b) => a.changedAt.getTime() - b.changedAt.getTime());
+    return rows.length > 0 && rows[rows.length - 1].price === l.totalPrice;
+  }));
+  check('价格历史.价格与单价自洽', priceHistories.every((h) => {
+    const listing = listingsById.get(h.listingId);
+    return Boolean(listing) && Math.abs(h.price / listing!.area - h.unitPrice) <= 1;
+  }));
+  check('价格历史.日期升序', priceHistories.every((h) => {
+    const rows = priceHistories.filter((item) => item.listingId === h.listingId).sort((a, b) => a.changedAt.getTime() - b.changedAt.getTime());
+    return rows.every((item, index) => index === 0 || item.changedAt >= rows[index - 1].changedAt);
+  }));
+  check('审批.状态合法', approvals.every((a) => ['pending', 'approved', 'rejected', 'cancelled'].includes(a.status)));
+  check('审批.已审记录有审批人与时间', approvals.filter((a) => a.status !== 'pending').every((a) => Boolean(a.approverId && a.reviewedAt)));
+  check('审批.待审记录无审批人', approvals.filter((a) => a.status === 'pending').every((a) => !a.approverId && !a.reviewedAt));
+  check('审批.通过记录价格=当前价', approvals.filter((a) => a.status === 'approved').every((a) => {
+    const listing = listingsById.get(a.listingId ?? '');
+    return Boolean(listing) && JSON.parse(a.payloadJson).newTotalPrice === listing!.totalPrice;
+  }));
+  check('咨询.状态与回复一致', consultations.every((c) => (c.status === 'replied' ? Boolean(c.replyContent && c.repliedAt) : !c.replyContent && !c.repliedAt)));
+  check('咨询.留言人与经纪人不同', consultations.every((c) => c.fromUserId !== c.toUserId));
 
   // ---------- 结果 ----------
   if (failures.length > 0) {

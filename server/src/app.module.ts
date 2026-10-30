@@ -20,6 +20,8 @@ import { AgenciesModule } from './modules/agencies/agencies.controller';
 import { StatsModule } from './modules/stats/stats.controller';
 import { AdminModule } from './modules/admin/admin.module';
 import { FinanceModule } from './modules/finance/finance.module';
+import { ApprovalsModule } from './modules/approvals/approvals.module';
+import { ConsultationsModule } from './modules/consultations/consultations.module';
 
 export const JWT_SECRET = process.env.JWT_SECRET ?? 'property-trade-platform-demo-secret-2026';
 
@@ -47,6 +49,8 @@ export const JWT_SECRET = process.env.JWT_SECRET ?? 'property-trade-platform-dem
     StatsModule,
     AdminModule,
     FinanceModule,
+    ApprovalsModule,
+    ConsultationsModule,
   ],
   controllers: [HealthController],
   providers: [

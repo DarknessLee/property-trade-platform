@@ -62,6 +62,14 @@ export interface ListingImage {
   url: string;
 }
 
+export interface PriceHistoryPoint {
+  price: number;
+  unitPrice: number;
+  changedAt: string;
+  source: string;
+  remark?: string | null;
+}
+
 export interface Listing {
   id: string;
   code: string;
@@ -88,6 +96,7 @@ export interface Listing {
   viewCount: number;
   lng?: number;
   lat?: number;
+  priceHistory?: PriceHistoryPoint[];
   agent?: { id: string; user?: { name: string }; name?: string; agency: { id?: string; name: string; phone: string } };
   priceContext?: {
     communityAvgUnitPrice: number;
@@ -95,6 +104,44 @@ export interface Listing {
     communityOnSaleCount: number;
     sameCommunity: Array<{ id: string; title: string; area: number; totalPrice: number; unitPrice: number }>;
   };
+}
+
+export interface ApprovalItem {
+  id: string;
+  code: string;
+  type: string;
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  reason: string;
+  payload: { oldTotalPrice?: number; newTotalPrice?: number; oldUnitPrice?: number; newUnitPrice?: number; reason?: string };
+  reviewComment: string | null;
+  requester: { id: string; name: string };
+  approver: { id: string; name: string } | null;
+  reviewedAt: string | null;
+  createdAt: string;
+  listing: {
+    id: string;
+    code: string;
+    title: string;
+    totalPrice: number;
+    unitPrice: number;
+    area: number;
+    status: string;
+    community: { name: string; district: string };
+    agent: { id: string; name: string };
+  } | null;
+}
+
+export interface ConsultationItem {
+  id: string;
+  code: string;
+  content: string;
+  replyContent: string | null;
+  repliedAt: string | null;
+  status: 'pending' | 'replied' | 'closed';
+  createdAt: string;
+  listing: { id: string; code: string; title: string; totalPrice: number; area: number; status: string; community: { name: string; district: string } };
+  fromUser: { id: string; name: string; phone?: string; role?: string };
+  toUser: { id: string; name: string };
 }
 
 export interface AdminListing {

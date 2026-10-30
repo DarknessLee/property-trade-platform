@@ -1,4 +1,4 @@
-# 房产交易数字化协同平台（房交平台 V1.0）· 软著 Demo
+﻿# 房产交易数字化协同平台（房交平台 V1.0）· 软著 Demo
 
 面向房产交易的 B/S Web 协同平台 Demo：连接买卖双方与经纪机构，打通「房源—带看—签约—资金—交易进度」全链路。C 端门户与 B 端工作台同源，按 6 类角色分流。
 
@@ -8,9 +8,9 @@
 
 | 端 | 能力 |
 | --- | --- |
-| C 端（买方/卖方） | 房源搜索筛选、房源详情（图片/税费估算/同小区价格对比）、地图找房、预约看房、我的预约、我的合同（查看/签署/下载 PDF）、交易进度、站内消息、实名认证 |
-| B 端（经纪人/店长/财务/管理员） | 工作台、房源管理（录入/编辑/上下架/验真/图片与协议上传）、客户建档（标签/评级/保护期/防撞单）、带看周历（冲突检测/反馈评级）、合同签约（模板/发起/电子签署/作废/PDF）、交易进度推进与提醒、门店与经纪人、账号权限、业绩统计（总览/趋势/排行）、房源验真 + 实名审核、操作日志、资金核对 |
-| 平台能力 | JWT 鉴权 + 角色数据范围（本人/本店/全平台）、统一响应与业务错误码、软删除与审计日志、49 项种子数据自校验、Mock 第三方适配 |
+| C 端（买方/卖方） | 房源搜索筛选、房源详情（图片/税费估算/同小区价格对比/**价格走势**）、地图找房、预约看房、我的预约、我的合同（查看/签署/下载 PDF）、交易进度、**在线咨询与我的咨询**、站内消息、实名认证 |
+| B 端（经纪人/店长/财务/管理员） | 工作台、房源管理（录入/编辑/上下架/验真/**调价申请**/**重复房源提示**/图片与协议上传）、**审批中心（调价审批）**、**房源咨询（回复 C 端留言）**、客户建档（标签/评级/保护期/防撞单）、带看周历（冲突检测/反馈评级）、合同签约（模板/发起/电子签署/作废/PDF）、交易进度推进与提醒、门店与经纪人、账号权限、业绩统计（总览/趋势/排行）、房源验真 + 实名审核、操作日志、资金核对 |
+| 平台能力 | JWT 鉴权 + 角色数据范围（本人/本店/全平台）、统一响应与业务错误码、软删除与审计日志、66 项种子数据自校验、Mock 第三方适配 |
 
 ## 技术栈
 
@@ -19,7 +19,7 @@
 | 前端 | React 18 + TypeScript + Vite 6 + Ant Design 5 + React Router 6 + ECharts |
 | 后端 | NestJS 11 + TypeScript + Prisma 6 + JWT |
 | 数据库 | SQLite（schema 保持 PostgreSQL 兼容；Redis/MQ 用进程内替代） |
-| 测试 | Vitest + Supertest（API 107 项）、Playwright（E2E 34 条 + 角色截图 25 张） |
+| 测试 | Vitest + Supertest（API 128 项）、Playwright（E2E 41 条 + 角色截图 27 张） |
 
 ## 目录结构
 
@@ -29,13 +29,13 @@ property-trade-platform/
 │  ├─ prisma/              # schema、migrations、seed、validate
 │  ├─ src/modules/         # auth/public/listings/communities/customers/showings/contracts/
 │  │                       # agencies/stats/admin/finance/attachments/notifications/dicts
-│  └─ test/                # API 验收（api/listings/m3/m4 共 107 项）
+│  └─ test/                # API 验收（api/listings/m3/m4/e1 共 128 项）
 ├─ web/                    # React SPA
 │  ├─ src/pages/c/         # C 端门户（首页/列表/详情/地图/个人中心）
 │  └─ src/pages/b/         # B 端工作台（工作台/房源/客户/带看/合同/进度/门店/统计/审核/日志/资金/账号）
 ├─ e2e/                    # Playwright 用例与截图脚本
 ├─ scripts/check-docs.mjs  # 文档一致性检查（链接/截图/名称版本）
-├─ docs/                   # 00 画像、01 阶段、02 契约、03 数据、04 权限、05–09 阶段验收报告
+├─ docs/                   # 00 画像、01 阶段、02 契约、03 数据、04 权限、05–10 阶段/增强验收报告
 ├─ STATUS.md / DECISIONS.md / PLAN-MATRIX.md
 └─ package.json            # npm workspaces 统一入口
 ```
@@ -46,7 +46,7 @@ property-trade-platform/
 
 ```powershell
 npm install          # 安装依赖（npm workspaces；自动 prisma generate）
-npm run db:reset     # 建库 + 迁移 + 种子数据 + 49 项数据质量校验
+npm run db:reset     # 建库 + 迁移 + 种子数据 + 66 项数据质量校验
 npm run dev          # 并行启动 API(3000) 与 Web(5173)
 ```
 
@@ -133,21 +133,25 @@ npm run dev          # 并行启动 API(3000) 与 Web(5173)
 | --- | --- |
 | ![资金核对](docs/screenshots/24-B端-财务-资金核对.png) | ![账号权限](docs/screenshots/25-B端-管理员-账号权限.png) |
 
+| 审批中心（调价） | 房源咨询（回复留言） |
+| --- | --- |
+| ![审批中心](docs/screenshots/26-B端-店长-审批中心.png) | ![房源咨询](docs/screenshots/27-B端-管理员-房源咨询.png) |
+
 ## 验收命令
 
 | 命令 | 说明 |
 | --- | --- |
-| `npm run db:reset` | 数据库重建 + 迁移 + 种子 + 49 项数据质量校验（失败即退出非 0） |
+| `npm run db:reset` | 数据库重建 + 迁移 + 种子 + 66 项数据质量校验（失败即退出非 0） |
 | `npm run build` | server + web 构建与类型检查（0 错误） |
-| `npm run test:api` | API 验收 107 项（正常/异常/权限/数据范围） |
-| `npm run test:e2e` | UI E2E 34 条（6 角色全链路） |
+| `npm run test:api` | API 验收 128 项（正常/异常/权限/数据范围） |
+| `npm run test:e2e` | UI E2E 41 条（6 角色全链路） |
 | `npm run check:docs` | 文档一致性（本地链接、README 截图齐全、名称/版本、阶段报告） |
 | `npm run verify` | 依次执行 db:reset → build → test:api → test:e2e → check:docs |
-| `npm run screenshots` | 按角色生成 25 张最终截图到 `docs/screenshots/` |
+| `npm run screenshots` | 按角色生成 27 张最终截图到 `docs/screenshots/` |
 
 ## 数据与 Mock 说明
 
-- 种子规模：6 机构/门店、12 经纪人、36 用户、15 小区、60 房源、30 客户、45 带看、12 合同、60 进度节点、28 资金记录、40 通知、50 日志、40 字典。
+- 种子规模：6 机构/门店、12 经纪人、36 用户、15 小区、60 房源、30 客户、45 带看、12 合同、60 进度节点、28 资金记录、40 通知、50 日志、40 字典、**191 条价格历史、6 条审批单、10 条在线咨询**。
 - 数据真实性：手机号合法号段、身份证 GB 11643 校验位（脱敏存储）、房源/合同/带看编号规则唯一、金额自洽（总价=单价×面积取整、佣金=金额×费率）、状态机可达、日期顺序合理、全虚构机构/小区/人名。
 - 外部系统全部 Mock：e签宝电子签、支付通道、短信、实名认证、高德地图、OSS、RabbitMQ；不申请真实密钥、不产生真实费用与法律效力。
 
@@ -159,13 +163,14 @@ npm run dev          # 并行启动 API(3000) 与 Web(5173)
 | [docs/00-项目方案与画像.md](docs/00-项目方案与画像.md) | 项目画像、角色、范围、技术边界 |
 | [docs/01-阶段计划与验收口径.md](docs/01-阶段计划与验收口径.md) | M0–M5 阶段、交付物、验收命令与门禁 |
 | [docs/02-接口契约.md](docs/02-接口契约.md) | 统一响应、错误码、字段级接口、状态机、testid 规范 |
-| [docs/03-数据模型与种子.md](docs/03-数据模型与种子.md) | 17 张表、种子分布、49 项校验 |
+| [docs/03-数据模型与种子.md](docs/03-数据模型与种子.md) | 20 张表、种子分布、66 项校验 |
 | [docs/04-权限矩阵.md](docs/04-权限矩阵.md) | 角色 × 模块、菜单可见性、后端兜底 |
 | [docs/05-M1-验收报告.md](docs/05-M1-验收报告.md) | M1 契约与数据基座 |
 | [docs/06-M2-验收报告.md](docs/06-M2-验收报告.md) | M2 用户中心 + 房源域 |
 | [docs/07-M3-验收报告.md](docs/07-M3-验收报告.md) | M3 客户带看 + 交易签约 |
 | [docs/08-M4-验收报告.md](docs/08-M4-验收报告.md) | M4 机构运营 + 集成验收 |
 | [docs/09-M5-验收报告.md](docs/09-M5-验收报告.md) | M5 文档收敛与冷启动 |
+| [docs/10-E1-增强验收报告.md](docs/10-E1-增强验收报告.md) | E1 增强：价格走势/调价审批/重复提示/在线咨询（API 128 / E2E 41 / 截图 27） |
 | [STATUS.md](STATUS.md) | 当前状态与下一步（新会话先读） |
 | [DECISIONS.md](DECISIONS.md) | 关键决策记录 |
 | [PLAN-MATRIX.md](PLAN-MATRIX.md) | 方案要求 vs 实现状态追踪 |

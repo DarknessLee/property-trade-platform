@@ -212,6 +212,11 @@ export class PublicController {
         select: { unitPrice: true },
       }),
     ]);
+    const priceHistory = await this.prisma.priceHistory.findMany({
+      where: { listingId: row.id },
+      select: { price: true, unitPrice: true, changedAt: true, source: true, remark: true },
+      orderBy: { changedAt: 'asc' },
+    });
     const communityAvgUnitPrice = communityRows.length
       ? Math.round(communityRows.reduce((sum, item) => sum + item.unitPrice, 0) / communityRows.length)
       : row.unitPrice;
@@ -221,6 +226,7 @@ export class PublicController {
 
     return {
       ...this.toListing(row as unknown as ListingRow),
+      priceHistory,
       priceContext: {
         communityAvgUnitPrice,
         districtAvgUnitPrice,

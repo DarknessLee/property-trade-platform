@@ -29,7 +29,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { useAuth } from '../../auth/AuthContext';
 import { apiGet, apiPatch, apiPost, errorMessage, http } from '../../api/client';
 import { TOKEN_KEY } from '../../api/client';
-import type { Contract, ProgressNode, Showing } from '../../types';
+import type { ConsultationItem, Contract, ProgressNode, Showing } from '../../types';
 import { CONTRACT_STATUS, PROGRESS_NODES, PROGRESS_STATUS, SHOWING_STATUS } from '../../types';
 import { formatDate, toWan } from '../../utils/format';
 
@@ -82,6 +82,19 @@ export default function PortalMinePage(): JSX.Element {
     }
   };
 
+  const [consultations, setConsultations] = useState<ConsultationItem[]>([]);
+  const [consultLoading, setConsultLoading] = useState(false);
+  const loadConsultations = async (): Promise<void> => {
+    setConsultLoading(true);
+    try {
+      setConsultations(await apiGet<ConsultationItem[]>('/consultations/my'));
+    } catch {
+      setConsultations([]);
+    } finally {
+      setConsultLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     void apiGet<{ items: NotificationItem[]; unreadCount: number }>('/notifications')
@@ -92,6 +105,7 @@ export default function PortalMinePage(): JSX.Element {
       .catch(() => undefined);
     void loadShowings();
     void loadContracts();
+    void loadConsultations();
   }, [user]);
 
   if (loading) {
@@ -306,6 +320,41 @@ export default function PortalMinePage(): JSX.Element {
                   label: `我的合同（${contracts.length}）`,
                   children: (
                     <Table rowKey="id" columns={contractColumns} dataSource={contracts} loading={contractsLoading} pagination={false} locale={{ emptyText: <Empty description="暂无合同" /> }} data-testid="my-contracts-table" />
+                  ),
+                },
+                {
+                  key: 'consultations',
+                  label: `我的咨询（${consultations.length}）`,
+                  children: (
+                    <List
+                      loading={consultLoading}
+                      dataSource={consultations}
+                      locale={{ emptyText: '暂无咨询记录，可在房源详情页发起在线咨询' }}
+                      renderItem={(item) => (
+                        <List.Item>
+                          <List.Item.Meta
+                            title={
+                              <Space>
+                                <span style={{ fontWeight: 600 }}>{item.listing.title}</span>
+                                <Tag color={item.status === 'replied' ? 'green' : 'gold'}>{item.status === 'replied' ? '已回复' : '待回复'}</Tag>
+                              </Space>
+                            }
+                            description={
+                              <div>
+                                <div style={{ color: '#4b5563', marginTop: 4 }}>我的留言：{item.content}</div>
+                                {item.replyContent && (
+                                  <div style={{ background: '#f0f7ff', borderRadius: 6, padding: '8px 10px', marginTop: 6 }}>
+                                    <div style={{ color: '#1677ff', fontSize: 12, marginBottom: 2 }}>经纪人回复 · {item.repliedAt ? formatDate(item.repliedAt) : ''}</div>
+                                    <div style={{ color: '#1f2329' }}>{item.replyContent}</div>
+                                  </div>
+                                )}
+                                <Text type="secondary" style={{ fontSize: 12 }}>{new Date(item.createdAt).toLocaleString('zh-CN')}</Text>
+                              </div>
+                            }
+                          />
+                        </List.Item>
+                      )}
+                    />
                   ),
                 },
                 {

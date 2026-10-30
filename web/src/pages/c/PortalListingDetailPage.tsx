@@ -1,4 +1,4 @@
-import { Alert, Avatar, Button, Card, Col, DatePicker, Descriptions, Divider, Form, Image, Modal, Row, Select, Space, Spin, Switch, Tag, TimePicker, Typography, App as AntdApp } from 'antd';
+import { Alert, Avatar, Button, Card, Col, DatePicker, Descriptions, Divider, Form, Image, Input, Modal, Row, Select, Space, Spin, Switch, Tag, TimePicker, Typography, App as AntdApp } from 'antd';
 import { ArrowLeftOutlined, EnvironmentOutlined, PhoneOutlined, ScheduleOutlined, UserOutlined } from '@ant-design/icons';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -7,6 +7,7 @@ import { apiGet, apiPost, errorMessage } from '../../api/client';
 import type { Listing } from '../../types';
 import { toWan } from '../../components/ListingCard';
 import PriceChart from '../../components/PriceChart';
+import PriceTrendChart from '../../components/PriceTrendChart';
 import { useAuth } from '../../auth/AuthContext';
 import { estimateTax } from '../../utils/format';
 
@@ -27,6 +28,9 @@ export default function PortalListingDetailPage(): JSX.Element {
   const [bookingOpen, setBookingOpen] = useState(false);
   const [bookingForm] = Form.useForm<{ date: Dayjs; time: Dayjs }>();
   const [bookingSubmitting, setBookingSubmitting] = useState(false);
+  const [consultOpen, setConsultOpen] = useState(false);
+  const [consultForm] = Form.useForm<{ content: string }>();
+  const [consultSubmitting, setConsultSubmitting] = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -174,6 +178,15 @@ export default function PortalListingDetailPage(): JSX.Element {
               </Text>
             </Card>
           )}
+
+          {listing.priceHistory && listing.priceHistory.length > 1 && (
+            <Card title="价格走势" style={{ marginTop: 16 }} data-testid="price-trend-card">
+              <PriceTrendChart points={listing.priceHistory} height={240} />
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                折线为该房源挂牌价历史（含审批调价），橙色节点为审批通过后的调价记录；数据来自平台挂牌留痕，仅作参考。
+              </Text>
+            </Card>
+          )}
         </Col>
 
         <Col xs={24} lg={8}>
@@ -277,7 +290,20 @@ export default function PortalListingDetailPage(): JSX.Element {
               >
                 预约看房
               </Button>
-              <Button block icon={<UserOutlined />} onClick={() => message.info('在线咨询将在 M3 阶段开放')}>
+              <Button
+                block
+                icon={<UserOutlined />}
+                onClick={() => {
+                  if (!user) {
+                    message.info('请先登录后在线咨询');
+                    navigate('/login');
+                    return;
+                  }
+                  consultForm.resetFields();
+                  setConsultOpen(true);
+                }}
+                data-testid="btn-consult"
+              >
                 在线咨询
               </Button>
               <Text type="secondary" style={{ fontSize: 12 }}>
@@ -325,6 +351,36 @@ export default function PortalListingDetailPage(): JSX.Element {
           </Space.Compact>
         </Form>
         <div style={{ color: '#8a9099', fontSize: 12 }}>提交后由该房源维护经纪人确认；同一经纪人时段冲突时需另选时间。</div>
+      </Modal>
+
+      <Modal
+        title="在线咨询"
+        open={consultOpen}
+        onCancel={() => setConsultOpen(false)}
+        okText="发送咨询"
+        confirmLoading={consultSubmitting}
+        onOk={async () => {
+          try {
+            const values = await consultForm.validateFields();
+            setConsultSubmitting(true);
+            await apiPost('/consultations', { listingId: listing.id, content: values.content });
+            message.success('咨询已发送，经纪人回复后将通知您');
+            setConsultOpen(false);
+          } catch (error) {
+            if (error instanceof Error) message.error(errorMessage(error));
+          } finally {
+            setConsultSubmitting(false);
+          }
+        }}
+      >
+        <div style={{ marginBottom: 12, color: '#6b7280' }}>
+          {listing.title} · 经纪人 {listing.agent?.user?.name ?? ''}
+        </div>
+        <Form form={consultForm} layout="vertical">
+          <Form.Item name="content" label="咨询内容" rules={[{ required: true, message: '请填写咨询内容' }, { min: 5, message: '请至少填写 5 个字' }]}>
+            <Input.TextArea rows={4} maxLength={500} showCount placeholder="如：房源还在售吗？周末方便看房吗？税费大概多少？" data-testid="consult-input" />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

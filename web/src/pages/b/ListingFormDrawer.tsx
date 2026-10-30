@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { App as AntdApp, Button, Col, Divider, Drawer, Form, Input, InputNumber, Row, Select, Space, Upload } from 'antd';
+import { Alert, App as AntdApp, Button, Col, Divider, Drawer, Form, Input, InputNumber, Row, Select, Space, Upload } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import type { UploadFile } from 'antd';
-import { apiPatch, apiPost, apiUpload, errorMessage } from '../../api/client';
+import { apiGet, apiPatch, apiPost, apiUpload, errorMessage } from '../../api/client';
 import type { AdminListing, CommunityOption, ListingImage } from '../../types';
+import { toWan } from '../../utils/format';
 
 interface SellerOption {
   id: string;
@@ -55,6 +56,23 @@ export default function ListingFormDrawer({
     if (!area || !unitPrice) return '—';
     return `${Math.round((area * unitPrice) / 1000) / 100} 万（按千元取整）`;
   }, [area, unitPrice]);
+
+  const communityId = Form.useWatch<string | undefined>('communityId', form);
+  const rooms = Form.useWatch<number | undefined>('rooms', form);
+  const [duplicates, setDuplicates] = useState<Array<{ id: string; code: string; title: string; area: number; totalPrice: number; status: string; agentName: string }>>([]);
+
+  useEffect(() => {
+    if (!open || initial || !communityId || !area) {
+      setDuplicates([]);
+      return undefined;
+    }
+    const timer = setTimeout(() => {
+      void apiGet<{ items: typeof duplicates }>('/listings/duplicate-check', { params: { communityId, area, rooms } })
+        .then((data) => setDuplicates(data.items))
+        .catch(() => setDuplicates([]));
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [open, initial, communityId, area, rooms]);
 
   useEffect(() => {
     if (!open) return;
@@ -143,6 +161,25 @@ export default function ListingFormDrawer({
       }
     >
       <Form form={form} layout="vertical">
+        {duplicates.length > 0 && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 12 }}
+            data-testid="duplicate-alert"
+            message={`检测到 ${duplicates.length} 套疑似重复房源（同小区、面积接近）`}
+            description={
+              <div style={{ fontSize: 12 }}>
+                {duplicates.map((item) => (
+                  <div key={item.id}>
+                    · {item.title}（{item.code}）{item.area}㎡ · {toWan(item.totalPrice)} 万 · 维护人 {item.agentName}
+                  </div>
+                ))}
+                <div style={{ marginTop: 4, color: '#8a9099' }}>提示为疑似重复，确认非重复房源后可继续保存。</div>
+              </div>
+            }
+          />
+        )}
         <Row gutter={16}>
           <Col span={12}>
             <Form.Item name="communityId" label="所属小区" rules={[{ required: true, message: '请选择小区' }]}>
@@ -203,7 +240,7 @@ export default function ListingFormDrawer({
         <Row gutter={16}>
           <Col span={6}>
             <Form.Item name="rooms" label="室" rules={[{ required: true }]}>
-              <InputNumber min={1} max={10} style={{ width: '100%' }} />
+              <InputNumber min={1} max={10} style={{ width: '100%' }} data-testid="form-rooms" />
             </Form.Item>
           </Col>
           <Col span={6}>

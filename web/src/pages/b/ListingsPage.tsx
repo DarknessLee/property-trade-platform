@@ -9,6 +9,7 @@ import {
   Empty,
   Form,
   Input,
+  InputNumber,
   Modal,
   Select,
   Space,
@@ -54,6 +55,8 @@ export default function ListingsPage(): JSX.Element {
   const [detail, setDetail] = useState<AdminListing | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [auditTarget, setAuditTarget] = useState<AdminListing | null>(null);
+  const [priceTarget, setPriceTarget] = useState<AdminListing | null>(null);
+  const [priceForm] = Form.useForm<{ newTotalPrice: number; reason: string }>();
   const [auditForm] = Form.useForm<{ pass: boolean; reason?: string }>();
 
   const load = useCallback(async () => {
@@ -226,9 +229,22 @@ export default function ListingsPage(): JSX.Element {
             编辑
           </Button>
           {record.status === 'on_sale' ? (
-            <Button size="small" type="link" danger onClick={() => void action(record, 'offline', '房源已下架')}>
-              下架
-            </Button>
+            <>
+              <Button
+                size="small"
+                type="link"
+                onClick={() => {
+                  setPriceTarget(record);
+                  priceForm.setFieldsValue({ newTotalPrice: record.totalPrice, reason: '' });
+                }}
+                data-testid={`btn-price-${record.code}`}
+              >
+                调价申请
+              </Button>
+              <Button size="small" type="link" danger onClick={() => void action(record, 'offline', '房源已下架')}>
+                下架
+              </Button>
+            </>
           ) : (
             <>
               {['pending', 'offline'].includes(record.status) && (
@@ -302,6 +318,7 @@ export default function ListingsPage(): JSX.Element {
             setStatus(value);
           }}
           options={Object.entries(LISTING_STATUS).map(([value, info]) => ({ value, label: info.label }))}
+          data-testid="listings-status-filter"
         />
         <Select
           allowClear
@@ -487,6 +504,44 @@ export default function ListingsPage(): JSX.Element {
             <Input.TextArea rows={3} maxLength={200} showCount placeholder="如：委托协议缺少业主签字页" />
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        title="调价审批申请"
+        open={Boolean(priceTarget)}
+        onCancel={() => setPriceTarget(null)}
+        okText="提交审批"
+        onOk={async () => {
+          if (!priceTarget) return;
+          try {
+            const values = await priceForm.validateFields();
+            await apiPost('/approvals/price-change', { listingId: priceTarget.id, newTotalPrice: Math.round(Number(values.newTotalPrice)), reason: values.reason });
+            message.success('调价申请已提交，等待店长/管理员审批');
+            setPriceTarget(null);
+            priceForm.resetFields();
+            await load();
+          } catch (error) {
+            if (error instanceof Error) message.error(errorMessage(error));
+          }
+        }}
+        width={520}
+      >
+        {priceTarget && (
+          <>
+            <div style={{ marginBottom: 12, color: '#6b7280' }}>
+              {priceTarget.title} · 当前挂牌价 <b>{priceTarget.totalPrice.toLocaleString()}</b> 元（{toWan(priceTarget.totalPrice)} 万）
+            </div>
+            <Form form={priceForm} layout="vertical">
+              <Form.Item name="newTotalPrice" label="申请新总价（元）" rules={[{ required: true, message: '请填写新总价' }]}>
+                <InputNumber min={100000} step={10000} style={{ width: '100%' }} data-testid="price-new-total" />
+              </Form.Item>
+              <Form.Item name="reason" label="调价原因" rules={[{ required: true, message: '请填写调价原因' }]}>
+                <Input.TextArea rows={3} maxLength={200} showCount placeholder="如：业主急售/同户型成交价偏低/市场回暖上调" data-testid="price-reason" />
+              </Form.Item>
+            </Form>
+            <div style={{ color: '#8a9099', fontSize: 12 }}>提交后进入审批中心，审批通过后挂牌价自动更新并写入价格历史。</div>
+          </>
+        )}
       </Modal>
     </Card>
   );
