@@ -656,3 +656,25 @@ model CommissionAllocation {
 
   @@index([settlementId])
 }
+
+/// 佣金分成规则（E3 可配置：四角色比例，合计 100%）
+model CommissionRule {
+  id           String   @id @default(cuid())
+  name         String
+  active       Boolean  @default(false)
+  agentRate    Float // 房源维护经纪人
+  coAgentRate  Float // 协作经纪人
+  storeRate    Float // 门店
+  platformRate Float // 平台/财务
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+/// 审批流配置（E3 可配置：single 一级 / two_level 店长初审+管理员终审）
+model ApprovalFlowConfig {
+  id        String   @id @default(cuid())
+  type      String   @unique // price_change | key_handover | contract_void
+  mode      String   @default("single") // single | two_level
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}

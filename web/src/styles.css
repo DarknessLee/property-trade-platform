@@ -40,3 +40,67 @@ a {
   padding: 48px;
   text-align: center;
 }
+
+/* ---------- 移动端 H5 适配（E3） ---------- */
+.portal-mobile-only {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .portal-header {
+    padding: 0 12px !important;
+    gap: 8px !important;
+    height: 56px !important;
+    line-height: 56px !important;
+  }
+
+  .portal-desktop-menu {
+    display: none !important;
+  }
+
+  .portal-mobile-only {
+    display: inline-flex !important;
+    align-items: center;
+  }
+
+  .portal-hide-mobile {
+    display: none !important;
+  }
+
+  .portal-user > span:not(.ant-avatar):not(.ant-tag),
+  .portal-user .ant-tag {
+    display: none !important;
+  }
+
+  .portal-header > a span {
+    font-size: 16px !important;
+  }
+
+  .page-section {
+    padding: 0 12px !important;
+  }
+
+  .ant-card {
+    border-radius: 10px;
+  }
+
+  .ant-modal {
+    max-width: calc(100vw - 24px);
+    margin: 12px auto;
+  }
+
+  .ant-drawer-content-wrapper {
+    max-width: 90vw;
+  }
+
+  .listing-filter-card .ant-space,
+  .listing-filter-card .ant-form-item {
+    width: 100%;
+  }
+
+  .mobile-stack {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+}
+

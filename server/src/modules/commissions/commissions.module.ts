@@ -1,10 +1,38 @@
-﻿import { BadRequestException, Controller, Get, Injectable, Module, Param, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Injectable, Module, Param, Post, Put, Query } from '@nestjs/common';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
 import { ERROR_CODES } from '../../common/constants';
 import { contractScopeWhere } from '../../common/scope';
 import { AuditService } from '../audit/audit.service';
 import dayjs from 'dayjs';
+
+export class UpdateCommissionRuleDto {
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  name?: string;
+
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  agentRate!: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  coAgentRate!: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  storeRate!: number;
+
+  @IsNumber()
+  @Min(0)
+  @Max(1)
+  platformRate!: number;
+}
 
 const COMMISSION_INCLUDE = {
   contract: {
@@ -63,11 +91,12 @@ export class CommissionsService {
     if (existing) throw new BadRequestException({ code: ERROR_CODES.CONFLICT, message: `该合同已生成佣金结算单（${existing.code}）` });
 
     const totalCommission = contract.commissionAmount;
+    const rule = await this.getActiveRule();
     const allocations = [
-      { role: 'listing_agent', name: contract.agent.user.name, rate: 0.6 },
-      { role: 'co_agent', name: `${contract.agent.user.name}协作`, rate: 0.15 },
-      { role: 'store', name: contract.agency.name, rate: 0.2 },
-      { role: 'finance', name: '财务专员·邱丽', rate: 0.05 },
+      { role: 'listing_agent', name: contract.agent.user.name, rate: rule.agentRate },
+      { role: 'co_agent', name: `${contract.agent.user.name}协作`, rate: rule.coAgentRate },
+      { role: 'store', name: contract.agency.name, rate: rule.storeRate },
+      { role: 'finance', name: '财务专员·邱丽', rate: rule.platformRate },
     ];
     const amounts = allocations.map((item) => Math.round(totalCommission * item.rate));
     amounts[amounts.length - 1] = totalCommission - amounts.slice(0, -1).reduce((sum, item) => sum + item, 0);
@@ -76,7 +105,7 @@ export class CommissionsService {
       data: {
         code: `CM${dayjs().format('YYYY')}${String((await this.prisma.commissionSettlement.count()) + 1).padStart(6, '0')}`,
         contractId,
-        ruleName: '标准佣金分成规则 V1.0',
+        ruleName: rule.name,
         baseAmount: contract.amount,
         totalCommission,
         status: 'pending',
@@ -84,7 +113,7 @@ export class CommissionsService {
       },
       include: COMMISSION_INCLUDE,
     });
-    await this.audit.record('create_commission', 'commission', settlement.id, { code: settlement.code, totalCommission });
+    await this.audit.record('create_commission', 'commission', settlement.id, { code: settlement.code, totalCommission, rule: rule.name });
     return this.toDto(settlement);
   }
 
@@ -108,17 +137,40 @@ export class CommissionsService {
     return this.toDto(updated);
   }
 
-  rules() {
+  async rules() {
+    const rule = await this.getActiveRule();
     return {
-      name: '标准佣金分成规则 V1.0',
+      name: rule.name,
       description: '佣金 = 合同金额 × 佣金率（1%–2.5%）；按角色分成，合计 100%',
+      rates: { agentRate: rule.agentRate, coAgentRate: rule.coAgentRate, storeRate: rule.storeRate, platformRate: rule.platformRate },
       items: [
-        { role: 'listing_agent', label: '房源维护经纪人', rate: 0.6 },
-        { role: 'co_agent', label: '协作经纪人', rate: 0.15 },
-        { role: 'store', label: '门店留存', rate: 0.2 },
-        { role: 'finance', label: '平台/财务', rate: 0.05 },
+        { role: 'listing_agent', label: '房源维护经纪人', rate: rule.agentRate },
+        { role: 'co_agent', label: '协作经纪人', rate: rule.coAgentRate },
+        { role: 'store', label: '门店留存', rate: rule.storeRate },
+        { role: 'finance', label: '平台/财务', rate: rule.platformRate },
       ],
     };
+  }
+
+  async updateRules(name: string | undefined, rates: { agentRate: number; coAgentRate: number; storeRate: number; platformRate: number }) {
+    const sum = rates.agentRate + rates.coAgentRate + rates.storeRate + rates.platformRate;
+    if (Math.abs(sum - 1) > 0.001) {
+      throw new BadRequestException({ code: ERROR_CODES.BUSINESS_RULE, message: '四个角色分成比例合计必须为 100%' });
+    }
+    const active = await this.prisma.commissionRule.findFirst({ where: { active: true } });
+    const updated = active
+      ? await this.prisma.commissionRule.update({ where: { id: active.id }, data: { ...rates, ...(name ? { name } : {}) } })
+      : await this.prisma.commissionRule.create({ data: { name: name ?? '标准佣金分成规则 V1.0', active: true, ...rates } });
+    await this.audit.record('update_commission_rule', 'commission_rule', updated.id, { ...rates });
+    return this.rules();
+  }
+
+  private async getActiveRule() {
+    const rule = await this.prisma.commissionRule.findFirst({ where: { active: true } });
+    if (rule) return rule;
+    return this.prisma.commissionRule.create({
+      data: { name: '标准佣金分成规则 V1.0', active: true, agentRate: 0.6, coAgentRate: 0.15, storeRate: 0.2, platformRate: 0.05 },
+    });
   }
 
   private toDto(row: {
@@ -188,6 +240,17 @@ export class CommissionsController {
   @Roles('finance', 'admin')
   pay(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.commissions.pay(user, id);
+  }
+
+  @Put('rules')
+  @Roles('admin')
+  updateRules(@Body() dto: UpdateCommissionRuleDto) {
+    return this.commissions.updateRules(dto.name, {
+      agentRate: dto.agentRate,
+      coAgentRate: dto.coAgentRate,
+      storeRate: dto.storeRate,
+      platformRate: dto.platformRate,
+    });
   }
 }
 

@@ -1,5 +1,5 @@
-import { Avatar, Badge, Dropdown, Layout, Menu, Space, Tag } from 'antd';
-import { BellOutlined, EnvironmentOutlined, HomeOutlined, LogoutOutlined, SearchOutlined, UserOutlined } from '@ant-design/icons';
+import { Avatar, Badge, Button, Drawer, Dropdown, Layout, Menu, Space, Tag } from 'antd';
+import { BellOutlined, EnvironmentOutlined, HomeOutlined, LogoutOutlined, MenuOutlined, SearchOutlined, UserOutlined } from '@ant-design/icons';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext';
@@ -10,6 +10,7 @@ const { Header, Content, Footer } = Layout;
 export default function PortalLayout(): JSX.Element {
   const { user, logout } = useAuth();
   const [unread, setUnread] = useState(0);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -28,6 +29,7 @@ export default function PortalLayout(): JSX.Element {
   return (
     <Layout style={{ minHeight: '100vh', background: '#fff' }}>
       <Header
+        className="portal-header"
         style={{
           position: 'sticky',
           top: 0,
@@ -40,6 +42,14 @@ export default function PortalLayout(): JSX.Element {
           padding: '0 32px',
         }}
       >
+        <Button
+          className="portal-mobile-only"
+          type="text"
+          icon={<MenuOutlined />}
+          aria-label="打开导航"
+          onClick={() => setMobileOpen(true)}
+          style={{ marginRight: 4 }}
+        />
         <Link to="/portal" style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }} data-testid="portal-brand">
           <div
             style={{
@@ -57,10 +67,11 @@ export default function PortalLayout(): JSX.Element {
             房
           </div>
           <span style={{ fontSize: 18, fontWeight: 700, color: '#1f2329' }}>房交平台</span>
-          <Tag color="blue" style={{ marginLeft: 4 }}>演示环境</Tag>
+          <Tag color="blue" className="portal-hide-mobile" style={{ marginLeft: 4 }}>演示环境</Tag>
         </Link>
 
         <Menu
+          className="portal-desktop-menu"
           mode="horizontal"
           selectedKeys={[selectedKey]}
           style={{ flex: 1, minWidth: 200, borderBottom: 'none' }}
@@ -87,7 +98,7 @@ export default function PortalLayout(): JSX.Element {
                 ],
               }}
             >
-              <Space style={{ cursor: 'pointer' }} data-testid="portal-user">
+              <Space className="portal-user" style={{ cursor: 'pointer' }} data-testid="portal-user">
                 <Avatar size={28} style={{ background: '#1677ff' }}>{user.name.slice(0, 1)}</Avatar>
                 <span style={{ color: '#1f2329' }}>{user.name}</span>
                 <Tag color="green">{user.roleLabel}</Tag>
@@ -101,6 +112,25 @@ export default function PortalLayout(): JSX.Element {
           </Space>
         )}
       </Header>
+
+      <Drawer title="房交平台" placement="left" width={260} open={mobileOpen} onClose={() => setMobileOpen(false)}>
+        <Menu
+          mode="vertical"
+          selectedKeys={[selectedKey]}
+          onClick={() => setMobileOpen(false)}
+          items={[
+            { key: '/portal', icon: <HomeOutlined />, label: <Link to="/portal">首页</Link> },
+            { key: '/portal/listings', icon: <SearchOutlined />, label: <Link to="/portal/listings">找房</Link> },
+            { key: '/portal/map', icon: <EnvironmentOutlined />, label: <Link to="/portal/map">地图找房</Link> },
+            ...(user ? [{ key: '/portal/mine', icon: <UserOutlined />, label: <Link to="/portal/mine">个人中心</Link> }] : [{ key: '/login', icon: <UserOutlined />, label: <Link to="/login">登录 / 注册</Link> }]),
+          ]}
+        />
+        {user && (
+          <Button block style={{ marginTop: 16 }} icon={<LogoutOutlined />} onClick={() => { setMobileOpen(false); logout(); navigate('/login'); }}>
+            退出登录
+          </Button>
+        )}
+      </Drawer>
 
       <Content>
         <Outlet />

@@ -241,4 +241,37 @@ test.describe('角色截图', () => {
     await page.getByTestId('stats-market-card').waitFor();
     await shot(page, '32-B端-管理员-业绩看板-区域行情');
   });
+
+  test('33-B端-管理员-佣金规则配置', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/commissions');
+    await page.locator('.ant-table-row').first().waitFor();
+    await page.getByTestId('btn-rule-config').click();
+    await page.locator('.ant-modal-content').waitFor();
+    await shot(page, '33-B端-管理员-佣金规则配置');
+  });
+
+  test('34-B端-管理员-审批流配置', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/approvals');
+    await page.getByTestId('btn-approval-config').click();
+    await page.locator('.ant-modal-content').waitFor();
+    await shot(page, '34-B端-管理员-审批流配置');
+  });
+
+  test('35-B端-管理员-挂牌价走势', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/stats');
+    await page.getByRole('tab', { name: '区域行情' }).click();
+    await page.getByTestId('price-trend-line-chart').waitFor();
+    await shot(page, '35-B端-管理员-挂牌价走势');
+  });
+
+  test('36-移动端-C端找房', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await login(page, '13800000040');
+    await page.goto('/portal/listings');
+    await page.locator('[data-testid^="listing-card-"]').first().waitFor();
+    await shot(page, '36-移动端-C端找房');
+  });
 });

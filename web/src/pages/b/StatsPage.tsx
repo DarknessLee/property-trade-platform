@@ -1,10 +1,11 @@
-﻿import { useEffect, useState } from 'react';
-import { App as AntdApp, Card, Col, Progress, Row, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd';
+import { useEffect, useState } from 'react';
+import { App as AntdApp, Card, Col, Progress, Row, Select, Space, Statistic, Table, Tabs, Tag, Typography } from 'antd';
 import { BarChartOutlined, CrownOutlined, FunnelPlotOutlined, FundOutlined, PieChartOutlined, TeamOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { apiGet, errorMessage } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import TrendChart from '../../components/TrendChart';
+import PriceTrendLineChart from '../../components/PriceTrendLineChart';
 import { toWan } from '../../utils/format';
 
 const { Title, Text } = Typography;
@@ -37,6 +38,7 @@ interface MarketRow {
   signedCount: number;
   dealAmount: number;
   avgDealAmount: number;
+  communities: Array<{ name: string; onSaleCount: number; avgUnitPrice: number; signedCount: number; dealAmount: number }>;
 }
 
 interface CustomerProfile {
@@ -56,6 +58,8 @@ export default function StatsPage(): JSX.Element {
   const [market, setMarket] = useState<MarketRow[]>([]);
   const [profile, setProfile] = useState<CustomerProfile | null>(null);
   const [funnel, setFunnel] = useState<Array<{ name: string; value: number }>>([]);
+  const [priceTrend, setPriceTrend] = useState<Array<{ month: string; avgUnitPrice: number; listingCount: number }>>([]);
+  const [priceDistrict, setPriceDistrict] = useState<string | undefined>();
 
   useEffect(() => {
     void Promise.all([
@@ -76,6 +80,12 @@ export default function StatsPage(): JSX.Element {
       })
       .catch((error) => message.error(errorMessage(error)));
   }, [message]);
+
+  useEffect(() => {
+    void apiGet<Array<{ month: string; avgUnitPrice: number; listingCount: number }>>('/stats/price-trend', { params: { district: priceDistrict, months: 6 } })
+      .then(setPriceTrend)
+      .catch(() => setPriceTrend([]));
+  }, [priceDistrict]);
 
   const cards = [
     { title: '房源总数', value: overview?.listingCount ?? 0, suffix: '套', color: '#1677ff' },
@@ -149,21 +159,61 @@ export default function StatsPage(): JSX.Element {
   );
 
   const marketTab = (
-    <Card title={<span><BarChartOutlined /> 区域行情</span>} extra={<Text type="secondary" style={{ fontSize: 12 }}>在售量与成交均价按小区所属行政区统计</Text>} data-testid="stats-market-card">
-      <Table
-        rowKey="district"
-        pagination={false}
-        dataSource={market}
-        columns={[
-          { title: '行政区', dataIndex: 'district', width: 140 },
-          { title: '在售套数', dataIndex: 'onSaleCount', width: 110, render: (value: number) => `${value} 套` },
-          { title: '在售均价', dataIndex: 'avgUnitPrice', width: 150, render: (value: number) => `${value.toLocaleString()} 元/㎡` },
-          { title: '成交单量', dataIndex: 'signedCount', width: 110, render: (value: number) => `${value} 单` },
-          { title: '成交金额', dataIndex: 'dealAmount', width: 140, render: (value: number) => <Text strong>{toWan(value)} 万</Text> },
-          { title: '套均成交', dataIndex: 'avgDealAmount', width: 140, render: (value: number) => `${toWan(value)} 万` },
-        ]}
-      />
-    </Card>
+    <div>
+      <Card
+        title={<span><FundOutlined /> 挂牌价走势</span>}
+        extra={
+          <Select
+            allowClear
+            placeholder="全部行政区"
+            style={{ width: 160 }}
+            value={priceDistrict}
+            onChange={setPriceDistrict}
+            options={market.map((item) => ({ value: item.district, label: item.district }))}
+            data-testid="price-district-select"
+          />
+        }
+        data-testid="stats-price-trend-card"
+      >
+        {priceTrend.length > 0 ? <PriceTrendLineChart data={priceTrend} /> : <div style={{ padding: 40, textAlign: 'center' }}><Text type="secondary">加载中…</Text></div>}
+        <Text type="secondary" style={{ fontSize: 12 }}>
+          按月末统计各房源最新挂牌单价均值，柱状为当月挂牌样本量；可切换行政区下钻查看。
+        </Text>
+      </Card>
+
+      <Card title={<span><BarChartOutlined /> 区域行情（点击行下钻小区）</span>} style={{ marginTop: 16 }} extra={<Text type="secondary" style={{ fontSize: 12 }}>在售量与成交均价按小区所属行政区统计</Text>} data-testid="stats-market-card">
+        <Table
+          rowKey="district"
+          pagination={false}
+          dataSource={market}
+          expandable={{
+            expandedRowRender: (row: MarketRow) => (
+              <Table
+                size="small"
+                rowKey="name"
+                pagination={false}
+                dataSource={row.communities}
+                columns={[
+                  { title: '小区', dataIndex: 'name', width: 160 },
+                  { title: '在售', dataIndex: 'onSaleCount', width: 90, render: (value: number) => `${value} 套` },
+                  { title: '在售均价', dataIndex: 'avgUnitPrice', width: 150, render: (value: number) => `${value.toLocaleString()} 元/㎡` },
+                  { title: '成交单量', dataIndex: 'signedCount', width: 100, render: (value: number) => `${value} 单` },
+                  { title: '成交金额', dataIndex: 'dealAmount', width: 130, render: (value: number) => `${toWan(value)} 万` },
+                ]}
+              />
+            ),
+          }}
+          columns={[
+            { title: '行政区', dataIndex: 'district', width: 140 },
+            { title: '在售套数', dataIndex: 'onSaleCount', width: 110, render: (value: number) => `${value} 套` },
+            { title: '在售均价', dataIndex: 'avgUnitPrice', width: 150, render: (value: number) => `${value.toLocaleString()} 元/㎡` },
+            { title: '成交单量', dataIndex: 'signedCount', width: 110, render: (value: number) => `${value} 单` },
+            { title: '成交金额', dataIndex: 'dealAmount', width: 140, render: (value: number) => <Text strong>{toWan(value)} 万</Text> },
+            { title: '套均成交', dataIndex: 'avgDealAmount', width: 140, render: (value: number) => `${toWan(value)} 万` },
+          ]}
+        />
+      </Card>
+    </div>
   );
 
   const customersTab = (

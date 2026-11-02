@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { App as AntdApp, Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tag, Typography } from 'antd';
-import { AuditOutlined } from '@ant-design/icons';
+import { AuditOutlined, SettingOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
-import { apiGet, apiPost, errorMessage } from '../../api/client';
+import { apiGet, apiPost, apiPut, errorMessage } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import type { ApprovalItem } from '../../types';
 import { toWan } from '../../utils/format';
@@ -12,6 +12,7 @@ const { Title, Text } = Typography;
 
 const STATUS: Record<string, { label: string; color: string }> = {
   pending: { label: '待审批', color: 'gold' },
+  level1_approved: { label: '待终审', color: 'blue' },
   approved: { label: '已通过', color: 'green' },
   rejected: { label: '已驳回', color: 'red' },
   cancelled: { label: '已撤回', color: 'default' },
@@ -21,6 +22,7 @@ export default function ApprovalsPage(): JSX.Element {
   const { user } = useAuth();
   const { message } = AntdApp.useApp();
   const canReview = user?.role === 'store_manager' || user?.role === 'admin';
+  const isAdmin = user?.role === 'admin';
 
   const [rows, setRows] = useState<ApprovalItem[]>([]);
   const [total, setTotal] = useState(0);
@@ -30,6 +32,9 @@ export default function ApprovalsPage(): JSX.Element {
   const [target, setTarget] = useState<ApprovalItem | null>(null);
   const [mode, setMode] = useState<'approve' | 'reject'>('approve');
   const [form] = Form.useForm<{ comment?: string }>();
+  const [configOpen, setConfigOpen] = useState(false);
+  const [configForm] = Form.useForm<{ mode: string }>();
+  const [configs, setConfigs] = useState<Array<{ type: string; mode: string }>>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,11 +57,35 @@ export default function ApprovalsPage(): JSX.Element {
     if (!target) return;
     try {
       const values = await form.validateFields();
-      await apiPost(`/approvals/${target.id}/${mode}`, { comment: values.comment });
-      message.success(mode === 'approve' ? '已通过审批，房源价格已更新' : '已驳回并通知申请人');
+      const result = await apiPost<{ status: string }>(`/approvals/${target.id}/${mode}`, { comment: values.comment });
+      if (mode === 'reject') {
+        message.success('已驳回并通知申请人');
+      } else if (result.status === 'level1_approved') {
+        message.success('初审通过，已转管理员终审');
+      } else {
+        message.success('已通过审批，房源价格已更新');
+      }
       setTarget(null);
       form.resetFields();
       await load();
+    } catch (error) {
+      if (error instanceof Error) message.error(errorMessage(error));
+    }
+  };
+
+  const openConfig = async (): Promise<void> => {
+    const data = await apiGet<Array<{ type: string; mode: string }>>('/approvals/config');
+    setConfigs(data);
+    configForm.setFieldsValue({ mode: data.find((item) => item.type === 'price_change')?.mode ?? 'single' });
+    setConfigOpen(true);
+  };
+
+  const saveConfig = async (): Promise<void> => {
+    try {
+      const values = await configForm.validateFields();
+      await apiPut('/approvals/config', { type: 'price_change', mode: values.mode });
+      message.success('审批流配置已保存');
+      setConfigOpen(false);
     } catch (error) {
       if (error instanceof Error) message.error(errorMessage(error));
     }
@@ -93,17 +122,17 @@ export default function ApprovalsPage(): JSX.Element {
       title: '操作',
       width: 150,
       render: (_, record) =>
-        record.status === 'pending' && canReview ? (
+        (record.status === 'pending' && canReview) || (record.status === 'level1_approved' && isAdmin) ? (
           <Space size={0}>
-            <Button size="small" type="link" onClick={() => { setTarget(record); setMode('approve'); form.setFieldsValue({ comment: '同意调价，请同步意向客户。' }); }} data-testid={`btn-approve-${record.code}`}>
-              通过
+            <Button size="small" type="link" onClick={() => { setTarget(record); setMode('approve'); form.setFieldsValue({ comment: record.status === 'level1_approved' ? '终审通过，同意调价。' : '同意调价，请同步意向客户。' }); }} data-testid={`btn-approve-${record.code}`}>
+              {record.status === 'level1_approved' ? '终审' : '通过'}
             </Button>
             <Button size="small" type="link" danger onClick={() => { setTarget(record); setMode('reject'); form.setFieldsValue({ comment: '' }); }}>
               驳回
             </Button>
           </Space>
         ) : (
-          <Button size="small" type="link" onClick={() => { setTarget(record); setMode('approve'); form.setFieldsValue({ comment: record.reviewComment ?? '' }); }} disabled={record.status !== 'pending'}>
+          <Button size="small" type="link" onClick={() => { setTarget(record); setMode('approve'); form.setFieldsValue({ comment: record.reviewComment ?? '' }); }} disabled={!['pending', 'level1_approved'].includes(record.status)}>
             查看
           </Button>
         ),
@@ -126,6 +155,7 @@ export default function ApprovalsPage(): JSX.Element {
             options={Object.entries(STATUS).map(([value, info]) => ({ value, label: info.label }))}
             data-testid="approval-status"
           />
+          {isAdmin && <Button icon={<SettingOutlined />} onClick={() => void openConfig()} data-testid="btn-approval-config">审批流配置</Button>}
         </Space>
       </div>
 
@@ -141,7 +171,7 @@ export default function ApprovalsPage(): JSX.Element {
       />
 
       <Modal
-        title={mode === 'approve' ? '通过调价审批' : '驳回调价审批'}
+        title={mode === 'approve' ? (target?.status === 'level1_approved' ? '管理员终审' : '通过调价审批') : '驳回调价审批'}
         open={Boolean(target)}
         onCancel={() => setTarget(null)}
         onOk={() => void submitReview()}
@@ -166,6 +196,32 @@ export default function ApprovalsPage(): JSX.Element {
             </Form>
           </>
         )}
+      </Modal>
+
+      <Modal
+        title="调价审批流配置"
+        open={configOpen}
+        onCancel={() => setConfigOpen(false)}
+        onOk={() => void saveConfig()}
+        okText="保存配置"
+        width={520}
+        data-testid="approval-config-modal"
+      >
+        <div style={{ color: '#6b7280', fontSize: 12, marginBottom: 12 }}>
+          一级审批：店长或管理员审批一次即生效；两级审批：店长初审通过后转管理员终审。
+        </div>
+        <Form form={configForm} layout="vertical">
+          <Form.Item name="mode" label="调价审批模式" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { value: 'single', label: '一级审批（店长或管理员直接通过）' },
+                { value: 'two_level', label: '两级审批（店长初审 → 管理员终审）' },
+              ]}
+              data-testid="approval-config-mode"
+            />
+          </Form.Item>
+        </Form>
+        <div style={{ color: '#8a9099', fontSize: 12 }}>已配置类型：{configs.map((item) => `${item.type}(${item.mode === 'single' ? '一级' : '两级'})`).join('、') || '—'}</div>
       </Modal>
     </Card>
   );

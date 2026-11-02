@@ -1,4 +1,4 @@
-export type Role = 'buyer' | 'seller' | 'agent' | 'store_manager' | 'finance' | 'admin';
+﻿export type Role = 'buyer' | 'seller' | 'agent' | 'store_manager' | 'finance' | 'admin';
 
 export interface SafeUser {
   id: string;
@@ -110,7 +110,7 @@ export interface ApprovalItem {
   id: string;
   code: string;
   type: string;
-  status: 'pending' | 'approved' | 'rejected' | 'cancelled';
+  status: 'pending' | 'level1_approved' | 'approved' | 'rejected' | 'cancelled';
   reason: string;
   payload: { oldTotalPrice?: number; newTotalPrice?: number; oldUnitPrice?: number; newUnitPrice?: number; reason?: string };
   reviewComment: string | null;

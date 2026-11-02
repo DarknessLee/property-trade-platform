@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Module, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Module, Param, Post, Put, Query } from '@nestjs/common';
 import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
 import { ApprovalsService } from './approvals.service';
-import { CreatePriceApprovalDto, ListApprovalQueryDto, ReviewApprovalDto } from './dto';
+import { CreatePriceApprovalDto, ListApprovalQueryDto, ReviewApprovalDto, UpdateApprovalConfigDto } from './dto';
 
 @Controller('approvals')
 export class ApprovalsController {
@@ -11,6 +11,18 @@ export class ApprovalsController {
   @Roles('agent', 'store_manager', 'admin')
   list(@CurrentUser() user: AuthUser, @Query() query: ListApprovalQueryDto): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
     return this.approvals.list(user, query);
+  }
+
+  @Get('config')
+  @Roles('agent', 'store_manager', 'admin')
+  getConfigs(): Promise<unknown[]> {
+    return this.approvals.getConfigs();
+  }
+
+  @Put('config')
+  @Roles('admin')
+  updateConfig(@Body() dto: UpdateApprovalConfigDto): Promise<unknown> {
+    return this.approvals.updateConfig(dto.type, dto.mode);
   }
 
   @Get(':id')

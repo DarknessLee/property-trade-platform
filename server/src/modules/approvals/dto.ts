@@ -1,5 +1,13 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+
+export class UpdateApprovalConfigDto {
+  @IsIn(['price_change', 'contract_void', 'key_handover'])
+  type!: string;
+
+  @IsIn(['single', 'two_level'])
+  mode!: string;
+}
 
 export class CreatePriceApprovalDto {
   @IsString()

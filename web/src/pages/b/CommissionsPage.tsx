@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
-import { App as AntdApp, Button, Card, Descriptions, Drawer, Select, Space, Table, Tag, Typography } from 'antd';
+﻿import { useCallback, useEffect, useState } from 'react';
+import { App as AntdApp, Button, Card, Descriptions, Drawer, Form, InputNumber, Modal, Select, Space, Table, Tag, Typography } from 'antd';
+import { SettingOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
-import { apiGet, apiPost, errorMessage } from '../../api/client';
+import { apiGet, apiPost, apiPut, errorMessage } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
 import type { CommissionItem } from '../../types';
 import { toWan } from '../../utils/format';
@@ -33,7 +34,9 @@ export default function CommissionsPage(): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [detail, setDetail] = useState<CommissionItem | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
-  const [rule, setRule] = useState<{ name: string; description: string; items: Array<{ role: string; label: string; rate: number }> } | null>(null);
+  const [ruleModalOpen, setRuleModalOpen] = useState(false);
+  const [ruleForm] = Form.useForm<{ agentRate: number; coAgentRate: number; storeRate: number; platformRate: number }>();
+  const [rule, setRule] = useState<{ name: string; description: string; rates?: { agentRate: number; coAgentRate: number; storeRate: number; platformRate: number }; items: Array<{ role: string; label: string; rate: number }> } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -64,6 +67,39 @@ export default function CommissionsPage(): JSX.Element {
       if (detail?.id === item.id) setDetail(await apiGet<CommissionItem>(`/commissions/${item.id}`));
     } catch (error) {
       message.error(errorMessage(error));
+    }
+  };
+
+  const openRuleModal = (): void => {
+    if (!rule?.rates) return;
+    ruleForm.setFieldsValue({
+      agentRate: Number((rule.rates.agentRate * 100).toFixed(1)),
+      coAgentRate: Number((rule.rates.coAgentRate * 100).toFixed(1)),
+      storeRate: Number((rule.rates.storeRate * 100).toFixed(1)),
+      platformRate: Number((rule.rates.platformRate * 100).toFixed(1)),
+    });
+    setRuleModalOpen(true);
+  };
+
+  const saveRule = async (): Promise<void> => {
+    try {
+      const values = await ruleForm.validateFields();
+      const sum = values.agentRate + values.coAgentRate + values.storeRate + values.platformRate;
+      if (Math.abs(sum - 100) > 0.1) {
+        message.error('四个角色分成比例合计必须为 100%');
+        return;
+      }
+      const updated = await apiPut<typeof rule>('/commissions/rules', {
+        agentRate: values.agentRate / 100,
+        coAgentRate: values.coAgentRate / 100,
+        storeRate: values.storeRate / 100,
+        platformRate: values.platformRate / 100,
+      });
+      setRule(updated);
+      message.success('佣金规则已保存，新结算单将按新比例生成');
+      setRuleModalOpen(false);
+    } catch (error) {
+      if (error instanceof Error) message.error(errorMessage(error));
     }
   };
 
@@ -101,6 +137,7 @@ export default function CommissionsPage(): JSX.Element {
           佣金结算 <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>{rule?.name ?? '标准佣金分成规则'} · 共 {total} 单</Text>
         </Title>
         <Select allowClear placeholder="结算状态" style={{ width: 140 }} value={status} onChange={(value) => { setPage(1); setStatus(value); }} options={Object.entries(STATUS).map(([value, info]) => ({ value, label: info.label }))} />
+        {user?.role === 'admin' && <Button icon={<SettingOutlined />} onClick={openRuleModal} data-testid="btn-rule-config">规则配置</Button>}
       </div>
 
       {rule && (
@@ -140,6 +177,31 @@ export default function CommissionsPage(): JSX.Element {
           </>
         )}
       </Drawer>
+
+      <Modal
+        title="佣金分成规则配置"
+        open={ruleModalOpen}
+        onCancel={() => setRuleModalOpen(false)}
+        onOk={() => void saveRule()}
+        okText="保存规则"
+        width={520}
+      >
+        <div style={{ color: '#6b7280', fontSize: 12, marginBottom: 12 }}>四个角色比例合计须为 100%；保存后对新生成的结算单生效，历史结算单不变。</div>
+        <Form form={ruleForm} layout="vertical">
+          <Form.Item name="agentRate" label="房源维护经纪人（%）" rules={[{ required: true }]}>
+            <InputNumber min={0} max={100} step={1} style={{ width: '100%' }} data-testid="rule-agent-rate" />
+          </Form.Item>
+          <Form.Item name="coAgentRate" label="协作经纪人（%）" rules={[{ required: true }]}>
+            <InputNumber min={0} max={100} step={1} style={{ width: '100%' }} data-testid="rule-coagent-rate" />
+          </Form.Item>
+          <Form.Item name="storeRate" label="门店留存（%）" rules={[{ required: true }]}>
+            <InputNumber min={0} max={100} step={1} style={{ width: '100%' }} data-testid="rule-store-rate" />
+          </Form.Item>
+          <Form.Item name="platformRate" label="平台/财务（%）" rules={[{ required: true }]}>
+            <InputNumber min={0} max={100} step={1} style={{ width: '100%' }} data-testid="rule-platform-rate" />
+          </Form.Item>
+        </Form>
+      </Modal>
     </Card>
   );
 }

@@ -104,6 +104,31 @@ export class ApprovalsService {
 
   async approve(user: AuthUser, id: string, dto: ReviewApprovalDto): Promise<unknown> {
     const row = await this.findReviewable(user, id);
+    const config = await this.prisma.approvalFlowConfig.findUnique({ where: { type: row.type } });
+    const mode = config?.mode ?? 'single';
+
+    // 两级审批：店长初审通过后进入「待终审」，由管理员终审
+    if (mode === 'two_level' && user.role === 'store_manager') {
+      if (row.status !== 'pending') {
+        throw new BadRequestException({ code: ERROR_CODES.BUSINESS_RULE, message: '该审批单已完成初审，等待管理员终审' });
+      }
+      const approval = await this.prisma.approvalRequest.update({
+        where: { id },
+        data: { status: 'level1_approved', approverId: user.id, approverName: user.name, reviewComment: dto.comment ?? '店长初审通过，转管理员终审' },
+        include: APPROVAL_INCLUDE,
+      });
+      await this.audit.record('approve_approval_level1', 'approval', id, { code: row.code });
+      await this.notifyAdmins('调价审批待终审', `房源「${row.listing?.title ?? ''}」调价申请（${row.code}）已经店长初审通过，请管理员终审。`, id);
+      return this.toDto(approval);
+    }
+
+    if (mode === 'two_level' && user.role === 'admin' && !['pending', 'level1_approved'].includes(row.status)) {
+      throw new BadRequestException({ code: ERROR_CODES.BUSINESS_RULE, message: '该审批单已处理，不能重复审批' });
+    }
+    if (mode === 'single' && row.status !== 'pending') {
+      throw new BadRequestException({ code: ERROR_CODES.BUSINESS_RULE, message: '该审批单已处理，不能重复审批' });
+    }
+
     const payload = JSON.parse(row.payloadJson) as { oldTotalPrice: number; newTotalPrice: number; oldUnitPrice: number; newUnitPrice: number };
     const reviewedAt = new Date();
     const [approval] = await this.prisma.$transaction([
@@ -147,6 +172,20 @@ export class ApprovalsService {
     return this.toDto(approval);
   }
 
+  async getConfigs(): Promise<unknown[]> {
+    return this.prisma.approvalFlowConfig.findMany({ orderBy: { type: 'asc' } });
+  }
+
+  async updateConfig(type: string, mode: string): Promise<unknown> {
+    const config = await this.prisma.approvalFlowConfig.upsert({
+      where: { type },
+      update: { mode },
+      create: { type, mode },
+    });
+    await this.audit.record('update_approval_flow', 'approval_config', config.id, { type, mode });
+    return config;
+  }
+
   // ---------- 内部 ----------
 
   private async scopeWhere(user: AuthUser): Promise<Prisma.ApprovalRequestWhereInput> {
@@ -166,13 +205,20 @@ export class ApprovalsService {
 
   private async findReviewable(user: AuthUser, id: string): Promise<ApprovalRow> {
     const row = await this.findScoped(user, id);
-    if (row.status !== 'pending') {
+    if (!['pending', 'level1_approved'].includes(row.status)) {
       throw new BadRequestException({ code: ERROR_CODES.BUSINESS_RULE, message: '该审批单已处理，不能重复审批' });
     }
     if (row.requesterId === user.id) {
       throw new ForbiddenException({ code: ERROR_CODES.FORBIDDEN, message: '不能审批自己提交的申请' });
     }
     return row;
+  }
+
+  private async notifyAdmins(title: string, content: string, bizId: string): Promise<void> {
+    const admins = await this.prisma.user.findMany({ where: { role: 'admin', status: 'active' }, select: { id: true } });
+    for (const target of admins) {
+      await this.prisma.notification.create({ data: { userId: target.id, type: 'approval', title, content, bizType: 'approval', bizId } });
+    }
   }
 
   private async notifyApprovers(agencyId: string, approvalId: string, code: string, listingTitle: string, oldPrice: number, newPrice: number): Promise<void> {

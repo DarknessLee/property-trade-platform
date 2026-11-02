@@ -58,6 +58,11 @@ export async function apiPatch<T>(url: string, body?: unknown, config?: AxiosReq
   return (await http.patch(url, body, config)) as unknown as T;
 }
 
+/** PUT，返回业务 data */
+export async function apiPut<T>(url: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  return (await http.put(url, body, config)) as unknown as T;
+}
+
 /** 上传文件（multipart），返回业务 data */
 export async function apiUpload<T>(url: string, formData: FormData, params?: Record<string, unknown>): Promise<T> {
   return (await http.post(url, formData, { params, headers: { 'Content-Type': 'multipart/form-data' } })) as unknown as T;

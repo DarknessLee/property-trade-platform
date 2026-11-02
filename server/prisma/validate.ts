@@ -22,7 +22,7 @@ function isValidIdCard(id: string): boolean {
 }
 
 async function main(): Promise<void> {
-  const [users, realNames, agencies, agents, communities, listings, customers, showings, contracts, progresses, payments, dicts, priceHistories, approvals, consultations, loans, appraisals, escrows, escrowTransactions, materials, taxes, appointments, registrations, commissions, allocations] =
+  const [users, realNames, agencies, agents, communities, listings, customers, showings, contracts, progresses, payments, dicts, priceHistories, approvals, consultations, loans, appraisals, escrows, escrowTransactions, materials, taxes, appointments, registrations, commissions, allocations, commissionRules, approvalConfigs] =
     await Promise.all([
       prisma.user.findMany(),
       prisma.realNameAuth.findMany(),
@@ -49,6 +49,8 @@ async function main(): Promise<void> {
       prisma.registrationApplication.findMany(),
       prisma.commissionSettlement.findMany(),
       prisma.commissionAllocation.findMany(),
+      prisma.commissionRule.findMany(),
+      prisma.approvalFlowConfig.findMany(),
     ]);
 
   // ---------- 数量 ----------
@@ -223,6 +225,13 @@ async function main(): Promise<void> {
   check('金额.佣金分摊合计=总额', commissions.every((c) => allocations.filter((a) => a.settlementId === c.id).reduce((sum, a) => sum + a.amount, 0) === c.totalCommission));
   check('金额.佣金分摊比例合计≈100%', commissions.every((c) => Math.abs(allocations.filter((a) => a.settlementId === c.id).reduce((sum, a) => sum + a.rate, 0) - 1) < 0.001));
   check('状态.已支付佣金有支付时间', commissions.filter((c) => c.status === 'paid').every((c) => Boolean(c.paidAt && c.confirmedAt)));
+
+  // ---------- E3 配置 ----------
+  check('数量.佣金规则', commissionRules.length === 1, `实际 ${commissionRules.length}`);
+  check('数量.审批流配置', approvalConfigs.length === 2, `实际 ${approvalConfigs.length}`);
+  check('配置.佣金规则比例合计=100%', commissionRules.every((r) => Math.abs(r.agentRate + r.coAgentRate + r.storeRate + r.platformRate - 1) < 0.0001));
+  check('配置.仅一条启用佣金规则', commissionRules.filter((r) => r.active).length === 1);
+  check('配置.审批流类型唯一且模式合法', new Set(approvalConfigs.map((c) => c.type)).size === approvalConfigs.length && approvalConfigs.every((c) => ['single', 'two_level'].includes(c.mode)));
 
   // ---------- 结果 ----------
   if (failures.length > 0) {

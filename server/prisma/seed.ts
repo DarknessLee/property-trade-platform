@@ -91,6 +91,8 @@ const SELLER_NAMES = ['高强', '罗雪', '梁栋', '宋佳', '唐勇', '韩冰'
 
 async function main(): Promise<void> {
   console.log('[seed] 清理旧数据 ...');
+  await prisma.commissionRule.deleteMany();
+  await prisma.approvalFlowConfig.deleteMany();
   await prisma.commissionAllocation.deleteMany();
   await prisma.commissionSettlement.deleteMany();
   await prisma.registrationApplication.deleteMany();
@@ -1000,6 +1002,14 @@ async function main(): Promise<void> {
         createdAt: daysAgo(randInt(3, 20)),
       },
     });
+  }
+
+  // ---------- E3：佣金规则 / 审批流配置 ----------
+  await prisma.commissionRule.create({
+    data: { name: '标准佣金分成规则 V1.0', active: true, agentRate: 0.6, coAgentRate: 0.15, storeRate: 0.2, platformRate: 0.05 },
+  });
+  for (const type of ['price_change', 'contract_void']) {
+    await prisma.approvalFlowConfig.create({ data: { type, mode: 'single' } });
   }
 
   // ---------- 通知 ----------

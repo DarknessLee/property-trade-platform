@@ -141,11 +141,11 @@ export class StatsService {
     const [listings, contracts] = await Promise.all([
       this.prisma.houseListing.findMany({
         where: { ...listingWhere, status: 'on_sale' },
-        select: { unitPrice: true, community: { select: { district: true } } },
+        select: { unitPrice: true, community: { select: { district: true, name: true } } },
       }),
       this.prisma.contract.findMany({
         where: contractWhere,
-        select: { amount: true, listing: { select: { community: { select: { district: true } } } } },
+        select: { amount: true, listing: { select: { community: { select: { district: true, name: true } } } } },
       }),
     ]);
     const districts = Array.from(new Set([...listings.map((item) => item.community.district), ...contracts.map((item) => item.listing.community.district)]));
@@ -153,6 +153,19 @@ export class StatsService {
       const districtListings = listings.filter((item) => item.community.district === district);
       const districtContracts = contracts.filter((item) => item.listing.community.district === district);
       const dealAmount = districtContracts.reduce((sum, item) => sum + item.amount, 0);
+      const communityNames = Array.from(new Set(districtListings.map((item) => item.community.name)));
+      const communities = communityNames.map((name) => {
+        const rows = districtListings.filter((item) => item.community.name === name);
+        const deals = districtContracts.filter((item) => item.listing.community.name === name);
+        const communityDealAmount = deals.reduce((sum, item) => sum + item.amount, 0);
+        return {
+          name,
+          onSaleCount: rows.length,
+          avgUnitPrice: rows.length ? Math.round(rows.reduce((sum, item) => sum + item.unitPrice, 0) / rows.length) : 0,
+          signedCount: deals.length,
+          dealAmount: communityDealAmount,
+        };
+      });
       return {
         district,
         onSaleCount: districtListings.length,
@@ -160,6 +173,38 @@ export class StatsService {
         signedCount: districtContracts.length,
         dealAmount,
         avgDealAmount: districtContracts.length ? Math.round(dealAmount / districtContracts.length) : 0,
+        communities,
+      };
+    });
+  }
+
+  /** 挂牌价走势：按月统计各房源最新挂牌单价的均值（可下钻到行政区） */
+  async priceTrend(user: AuthUser, district?: string, months = 6): Promise<Array<{ month: string; avgUnitPrice: number; listingCount: number }>> {
+    const scope = await this.resolveStatsScope(user);
+    const baseWhere = scope.agentId
+      ? { isDeleted: false, agentId: scope.agentId }
+      : scope.all
+        ? { isDeleted: false }
+        : { isDeleted: false, agencyId: { in: scope.agencyIds } };
+    const listingWhere = { ...baseWhere, ...(district ? { community: { is: { district } } } : {}) };
+    const histories = await this.prisma.priceHistory.findMany({
+      where: { listing: { is: listingWhere } },
+      select: { listingId: true, unitPrice: true, changedAt: true },
+      orderBy: { changedAt: 'asc' },
+    });
+    const now = dayjs();
+    return Array.from({ length: months }).map((_, index) => {
+      const monthStart = now.subtract(months - 1 - index, 'month').startOf('month');
+      const monthEnd = now.subtract(months - 1 - index, 'month').endOf('month');
+      const latest = new Map<string, number>();
+      for (const row of histories) {
+        if (row.changedAt <= monthEnd.toDate()) latest.set(row.listingId, row.unitPrice);
+      }
+      const values = Array.from(latest.values());
+      return {
+        month: monthStart.format('YYYY-MM'),
+        avgUnitPrice: values.length ? Math.round(values.reduce((sum, item) => sum + item, 0) / values.length) : 0,
+        listingCount: values.length,
       };
     });
   }
@@ -277,6 +322,13 @@ export class StatsController {
   @Roles('agent', 'store_manager', 'finance', 'admin')
   funnel(@CurrentUser() user: AuthUser): Promise<{ stages: Array<{ name: string; value: number }> }> {
     return this.stats.funnel(user);
+  }
+
+  @Get('price-trend')
+  @Roles('agent', 'store_manager', 'finance', 'admin')
+  priceTrend(@CurrentUser() user: AuthUser, @Query('district') district?: string, @Query('months') months?: string): Promise<Array<{ month: string; avgUnitPrice: number; listingCount: number }>> {
+    const parsed = Math.min(12, Math.max(3, Number(months) || 6));
+    return this.stats.priceTrend(user, district, parsed);
   }
 }
 
