@@ -20,6 +20,7 @@ import { DownloadOutlined, PlusOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import { apiGet, apiPost, errorMessage, http } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
 import type { AdminListing, Contract, ContractTemplate, Customer, Paginated, ProgressNode } from '../../types';
 import { CONTRACT_STATUS, PROGRESS_NODES, PROGRESS_STATUS } from '../../types';
 import { formatDate, toWan } from '../../utils/format';
@@ -27,6 +28,8 @@ import { formatDate, toWan } from '../../utils/format';
 const { Title, Text } = Typography;
 
 export default function ContractsPage(): JSX.Element {
+  const { user } = useAuth();
+  const canManage = ['agent', 'store_manager', 'admin'].includes(user?.role ?? '');
   const { message } = AntdApp.useApp();
   const [rows, setRows] = useState<Contract[]>([]);
   const [total, setTotal] = useState(0);
@@ -211,7 +214,7 @@ export default function ContractsPage(): JSX.Element {
         <Title level={5} style={{ margin: 0 }}>
           合同签约 <Text type="secondary" style={{ fontSize: 12, fontWeight: 400 }}>共 {total} 份合同</Text>
         </Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => void openCreate()} data-testid="btn-create-contract">发起签约</Button>
+        {canManage && <Button type="primary" icon={<PlusOutlined />} onClick={() => void openCreate()} data-testid="btn-create-contract">发起签约</Button>}
       </div>
 
       <Space wrap style={{ marginBottom: 16 }}>
@@ -309,10 +312,10 @@ export default function ContractsPage(): JSX.Element {
             )}
 
             <Space wrap style={{ marginTop: 16 }}>
-              {['draft', 'pending'].includes(detail.signStatus) && (
+              {canManage && ['draft', 'pending'].includes(detail.signStatus) && (
                 <Button type="primary" onClick={() => void sign()} data-testid="btn-sign-contract">电子签署（Mock）</Button>
               )}
-              {['draft', 'pending'].includes(detail.signStatus) && (
+              {canManage && ['draft', 'pending'].includes(detail.signStatus) && (
                 <Button danger onClick={() => void voidContract()}>作废合同</Button>
               )}
               <Button icon={<DownloadOutlined />} onClick={() => void download()}>下载 PDF</Button>

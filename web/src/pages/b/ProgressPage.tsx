@@ -4,6 +4,7 @@ import { BellOutlined, NodeIndexOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import { apiGet, apiPatch, apiPost, errorMessage } from '../../api/client';
+import { useAuth } from '../../auth/AuthContext';
 import type { Contract, Paginated, ProgressNode } from '../../types';
 import { CONTRACT_STATUS, PROGRESS_NODES, PROGRESS_STATUS } from '../../types';
 import { formatDate, toWan } from '../../utils/format';
@@ -11,6 +12,8 @@ import { formatDate, toWan } from '../../utils/format';
 const { Title, Text } = Typography;
 
 export default function ProgressPage(): JSX.Element {
+  const { user } = useAuth();
+  const canOperate = user?.role !== 'finance';
   const { message } = AntdApp.useApp();
   const [rows, setRows] = useState<Contract[]>([]);
   const [total, setTotal] = useState(0);
@@ -145,7 +148,7 @@ export default function ProgressPage(): JSX.Element {
                       {node.plannedDate && !node.completedAt && <Text type="secondary" style={{ fontSize: 12 }}>计划 {formatDate(node.plannedDate)}</Text>}
                     </Space>
                     <div style={{ marginTop: 6 }}>
-                      {node.status !== 'done' && (
+                      {canOperate && node.status !== 'done' && (
                         <Space size={4}>
                           <Button
                             size="small"

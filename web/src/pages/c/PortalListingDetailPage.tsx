@@ -273,23 +273,28 @@ export default function PortalListingDetailPage(): JSX.Element {
             <Divider style={{ margin: '14px 0' }} />
 
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Button
-                type="primary"
-                block
-                icon={<ScheduleOutlined />}
-                onClick={() => {
-                  if (!user) {
-                    message.info('请先登录后预约看房');
-                    navigate('/login');
-                    return;
-                  }
-                  bookingForm.setFieldsValue({ date: dayjs().add(1, 'day'), time: dayjs().hour(10).minute(0) });
-                  setBookingOpen(true);
-                }}
-                data-testid="btn-book-showing"
-              >
-                预约看房
-              </Button>
+              {user?.role !== 'seller' && (
+                <Button
+                  type="primary"
+                  block
+                  icon={<ScheduleOutlined />}
+                  onClick={() => {
+                    if (!user) {
+                      message.info('请先登录后预约看房');
+                      navigate('/login');
+                      return;
+                    }
+                    bookingForm.setFieldsValue({ date: dayjs().add(1, 'day'), time: dayjs().hour(10).minute(0) });
+                    setBookingOpen(true);
+                  }}
+                  data-testid="btn-book-showing"
+                >
+                  预约看房
+                </Button>
+              )}
+              {user?.role === 'seller' && (
+                <div style={{ color: '#8a9099', fontSize: 12 }}>当前为卖方账号，预约看房功能仅对买方账号开放。</div>
+              )}
               <Button
                 block
                 icon={<UserOutlined />}

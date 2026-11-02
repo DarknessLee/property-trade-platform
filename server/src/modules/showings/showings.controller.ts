@@ -19,7 +19,7 @@ export class ShowingsController {
     return this.showings.calendar(user, weekStart);
   }
 
-  /** C 端：我的带看（声明在 :id 之前） */
+  /** C 端：我的带看（声明在 :id 之前；预约仅对买方开放） */
   @Get('my')
   @Roles('buyer')
   myList(@CurrentUser() user: AuthUser): Promise<unknown[]> {

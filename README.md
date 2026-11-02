@@ -1,4 +1,4 @@
-# 房产交易数字化协同平台（房交平台 V1.0）· 软著 Demo
+﻿# 房产交易数字化协同平台（房交平台 V1.0）· 软著 Demo
 
 面向房产交易的 B/S Web 协同平台 Demo：连接买卖双方与经纪机构，打通「房源—带看—签约—资金—交易进度」全链路。C 端门户与 B 端工作台同源，按 6 类角色分流。
 
@@ -19,7 +19,7 @@
 | 前端 | React 18 + TypeScript + Vite 6 + Ant Design 5 + React Router 6 + ECharts |
 | 后端 | NestJS 11 + TypeScript + Prisma 6 + JWT |
 | 数据库 | SQLite（schema 保持 PostgreSQL 兼容；Redis/MQ 用进程内替代） |
-| 测试 | Vitest + Supertest（API 173 项）、Playwright（E2E 59 条 + 角色截图 42 张） |
+| 测试 | Vitest + Supertest（API 177 项）、Playwright（E2E 65 条 + 角色截图 42 张） |
 
 ## 目录结构
 
@@ -29,7 +29,7 @@ property-trade-platform/
 │  ├─ prisma/              # schema、migrations、seed、validate
 │  ├─ src/modules/         # auth/public/listings/communities/customers/showings/contracts/
 │  │                       # agencies/stats/admin/finance/attachments/notifications/dicts
-│  └─ test/                # API 验收（api/listings/m3/m4/e1/e2/e3/e4 共 173 项）
+│  └─ test/                # API 验收（api/listings/m3/m4/e1/e2/e3/e4/permissions 共 177 项）
 ├─ web/                    # React SPA
 │  ├─ src/pages/c/         # C 端门户（首页/列表/详情/地图/个人中心）
 │  └─ src/pages/b/         # B 端工作台（工作台/房源/客户/带看/合同/进度/门店/统计/审核/日志/资金/账号）
@@ -175,8 +175,8 @@ npm run dev          # 并行启动 API(3000) 与 Web(5173)
 | --- | --- |
 | `npm run db:reset` | 数据库重建 + 迁移 + 种子 + 102 项数据质量校验（失败即退出非 0） |
 | `npm run build` | server + web 构建与类型检查（0 错误） |
-| `npm run test:api` | API 验收 173 项（正常/异常/权限/数据范围） |
-| `npm run test:e2e` | UI E2E 59 条（6 角色全链路） |
+| `npm run test:api` | API 验收 177 项（正常/异常/权限/数据范围） |
+| `npm run test:e2e` | UI E2E 65 条（6 角色全链路） |
 | `npm run check:docs` | 文档一致性（本地链接、README 截图齐全、名称/版本、阶段报告） |
 | `npm run verify` | 依次执行 db:reset → build → test:api → test:e2e → check:docs |
 | `npm run screenshots` | 按角色生成 42 张最终截图到 `docs/screenshots/` |
@@ -206,6 +206,7 @@ npm run dev          # 并行启动 API(3000) 与 Web(5173)
 | [docs/11-E2-交易后链路验收报告.md](docs/11-E2-交易后链路验收报告.md) | E2 增强：贷款/资金监管/过户/佣金/看板（API 146 / E2E 47 / 截图 32） |
 | [docs/12-E3-移动端与配置化验收报告.md](docs/12-E3-移动端与配置化验收报告.md) | E3 增强：移动端 H5/挂牌价走势/区域下钻/可配置审批流与佣金规则（API 155 / E2E 53 / 截图 36） |
 | [docs/13-E4-P0功能补齐验收报告.md](docs/13-E4-P0功能补齐验收报告.md) | E4 P0 补齐：账号权限/客户跟进与匹配/合同模板与条款/钥匙委托/投诉/数据字典（API 173 / E2E 59 / 截图 42） |
+| [docs/14-权限巡检与修复记录.md](docs/14-权限巡检与修复记录.md) | 演示账号权限巡检：菜单↔接口一致性修复（资金监管/卖家带看/财务只读），新增 6+4 条回归 |
 | [STATUS.md](STATUS.md) | 当前状态与下一步（新会话先读） |
 | [DECISIONS.md](DECISIONS.md) | 关键决策记录 |
 | [PLAN-MATRIX.md](PLAN-MATRIX.md) | 方案要求 vs 实现状态追踪 |

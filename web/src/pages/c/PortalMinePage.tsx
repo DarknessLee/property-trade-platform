@@ -1,4 +1,4 @@
-﻿import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Alert,
   App as AntdApp,
@@ -123,7 +123,7 @@ export default function PortalMinePage(): JSX.Element {
         setUnread(data.unreadCount);
       })
       .catch(() => undefined);
-    void loadShowings();
+    if (user.role === 'buyer') void loadShowings();
     void loadContracts();
     void loadConsultations();
     void loadComplaints();

@@ -179,7 +179,7 @@ export class EscrowsController {
   }
 
   @Get('overview')
-  @Roles('store_manager', 'finance', 'admin')
+  @Roles('agent', 'store_manager', 'finance', 'admin')
   overview(@CurrentUser() user: AuthUser) {
     return this.escrows.overview(user);
   }
