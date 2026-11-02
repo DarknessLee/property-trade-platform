@@ -69,7 +69,96 @@ export class CustomersService {
       orderBy: { scheduledAt: 'desc' },
       take: 10,
     });
-    return { ...this.toDto(row, showings.length), showings };
+    const followUps = await this.prisma.customerFollowUp.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' }, take: 20 });
+    return { ...this.toDto(row, showings.length), showings, followUps };
+  }
+
+  async followUps(user: AuthUser, id: string): Promise<unknown[]> {
+    await this.findScoped(user, id);
+    return this.prisma.customerFollowUp.findMany({ where: { customerId: id }, orderBy: { createdAt: 'desc' }, take: 50 });
+  }
+
+  async addFollowUp(user: AuthUser, id: string, dto: { content: string; nextAction?: string; nextFollowAt?: string }): Promise<unknown> {
+    const row = await this.findScoped(user, id);
+    const followUp = await this.prisma.customerFollowUp.create({
+      data: {
+        customerId: row.id,
+        content: dto.content,
+        nextAction: dto.nextAction ?? null,
+        nextFollowAt: dto.nextFollowAt ? new Date(dto.nextFollowAt) : null,
+        createdById: user.id,
+        createdByName: user.name,
+      },
+    });
+    await this.prisma.customer.update({ where: { id: row.id }, data: { updatedAt: new Date() } });
+    await this.audit.record('create_follow_up', 'customer', row.id, { followUpId: followUp.id });
+    return followUp;
+  }
+
+  /** 需求匹配推荐：按预算/区域/标签为买方客户推荐在售房源 */
+  async matches(user: AuthUser, id: string): Promise<Array<Record<string, unknown>>> {
+    const customer = await this.findScoped(user, id);
+    if (customer.type !== 'buyer') return [];
+    const listings = await this.prisma.houseListing.findMany({
+      where: { status: 'on_sale', isDeleted: false },
+      include: { community: true, agent: { include: { user: { select: { name: true } } } } },
+      orderBy: { listedAt: 'desc' },
+      take: 120,
+    });
+    let tags: string[] = [];
+    try {
+      tags = JSON.parse(customer.tagsJson) as string[];
+    } catch {
+      tags = [];
+    }
+    const budget = customer.budgetMax ?? customer.budgetMin ?? 0;
+    const scored = listings.map((listing) => {
+      let score = 0;
+      const reasons: string[] = [];
+      if (budget > 0) {
+        const diff = Math.abs(listing.totalPrice - budget) / budget;
+        if (diff <= 0.1) {
+          score += 45;
+          reasons.push('预算高度匹配');
+        } else if (diff <= 0.25) {
+          score += 25;
+          reasons.push('预算基本匹配');
+        } else if (diff <= 0.4) {
+          score += 10;
+        }
+      }
+      const haystack = `${listing.title} ${listing.community.name} ${listing.community.businessArea} ${listing.propertyType} ${listing.decoration}`;
+      if (tags.length > 0 && tags.some((tag) => haystack.includes(tag))) {
+        score += 20;
+        reasons.push('需求标签匹配');
+      }
+      if (customer.demand && [listing.community.district, listing.community.businessArea, listing.community.name].some((item) => customer.demand.includes(item))) {
+        score += 25;
+        reasons.push('意向区域匹配');
+      }
+      if (customer.budgetMin && customer.budgetMax && listing.totalPrice >= customer.budgetMin && listing.totalPrice <= customer.budgetMax) {
+        score += 10;
+        reasons.push('总价在预算区间内');
+      }
+      return { listing, score, reasons };
+    });
+    return scored
+      .filter((item) => item.score > 0)
+      .sort((a, b) => b.score - a.score || a.listing.totalPrice - b.listing.totalPrice)
+      .slice(0, 8)
+      .map((item) => ({
+        id: item.listing.id,
+        code: item.listing.code,
+        title: item.listing.title,
+        area: item.listing.area,
+        rooms: item.listing.rooms,
+        totalPrice: item.listing.totalPrice,
+        unitPrice: item.listing.unitPrice,
+        community: { name: item.listing.community.name, district: item.listing.community.district },
+        agentName: item.listing.agent.user.name,
+        score: item.score,
+        reasons: item.reasons,
+      }));
   }
 
   async create(user: AuthUser, dto: CreateCustomerDto): Promise<unknown> {

@@ -25,6 +25,9 @@ import LoansPage from './pages/b/LoansPage';
 import EscrowsPage from './pages/b/EscrowsPage';
 import TransfersPage from './pages/b/TransfersPage';
 import CommissionsPage from './pages/b/CommissionsPage';
+import ComplaintsPage from './pages/b/ComplaintsPage';
+import DictsPage from './pages/b/DictsPage';
+import TemplatesPage from './pages/b/TemplatesPage';
 import PortalMapPage from './pages/c/MapPage';
 import { useAuth } from './auth/AuthContext';
 
@@ -63,6 +66,9 @@ export default function App(): JSX.Element {
         <Route path="escrows" element={<EscrowsPage />} />
         <Route path="transfers" element={<TransfersPage />} />
         <Route path="commissions" element={<CommissionsPage />} />
+        <Route path="complaints" element={<ComplaintsPage />} />
+        <Route path="dicts" element={<DictsPage />} />
+        <Route path="templates" element={<TemplatesPage />} />
         <Route path="communities" element={<CommunitiesPage />} />
         <Route path="customers" element={<CustomersPage />} />
         <Route path="showings" element={<ShowingsPage />} />

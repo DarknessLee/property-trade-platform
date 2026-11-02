@@ -91,6 +91,9 @@ const SELLER_NAMES = ['高强', '罗雪', '梁栋', '宋佳', '唐勇', '韩冰'
 
 async function main(): Promise<void> {
   console.log('[seed] 清理旧数据 ...');
+  await prisma.customerFollowUp.deleteMany();
+  await prisma.complaint.deleteMany();
+  await prisma.roleMenuConfig.deleteMany();
   await prisma.commissionRule.deleteMany();
   await prisma.approvalFlowConfig.deleteMany();
   await prisma.commissionAllocation.deleteMany();
@@ -1012,6 +1015,85 @@ async function main(): Promise<void> {
     await prisma.approvalFlowConfig.create({ data: { type, mode: 'single' } });
   }
 
+  // ---------- E4：客户跟进 / 投诉 / 角色菜单 / 合同补充条款 ----------
+  const followUpContents = [
+    '电话回访：客户预算与需求已确认，重点推荐城东区两居。',
+    '带看后回访：客户对采光满意，但认为总价偏高，已反馈业主。',
+    '微信沟通：客户希望周末再看两套同小区房源。',
+    '业主沟通：业主同意小幅议价，需客户确认付款方式。',
+    '客户资料补充：已核验购房资格与贷款预审额度。',
+  ];
+  for (let i = 0; i < 20; i += 1) {
+    const customer = customers[i % customers.length];
+    const agent = agents.find((item) => item.id === customer.agentId) as (typeof agents)[number];
+    const agentUser = agentUsers.find((item) => item.id === agent.userId) as (typeof agentUsers)[number];
+    await prisma.customerFollowUp.create({
+      data: {
+        customerId: customer.id,
+        content: followUpContents[i % followUpContents.length],
+        nextAction: ['安排二次带看', '等待客户确认', '与业主议价', '协助办理贷款预审'][i % 4],
+        nextFollowAt: i % 2 === 0 ? dayjs().add(randInt(1, 10), 'day').toDate() : null,
+        createdById: agentUser.id,
+        createdByName: agentUser.name,
+        createdAt: daysAgo(randInt(1, 20)),
+      },
+    });
+  }
+
+  const complaints: Array<{ type: string; status: string; content: string }> = [
+    { type: 'listing_quality', status: 'pending', content: '房源照片与实勘不符，客厅采光明显偏暗，希望核实。' },
+    { type: 'false_info', status: 'pending', content: '该房源已售但仍在展示，请下架并更新状态。' },
+    { type: 'service', status: 'processing', content: '经纪人回复较慢，预约看房后未按约定时间联系。' },
+    { type: 'price', status: 'resolved', content: '同一房源在不同平台挂牌价不一致，已确认以平台价为准。' },
+    { type: 'listing_quality', status: 'resolved', content: '房屋渗水问题已在委托协议中补充说明，感谢平台跟进。' },
+    { type: 'other', status: 'rejected', content: '希望平台提供装修贷款服务（非平台业务范围）。' },
+  ];
+  for (let i = 0; i < complaints.length; i += 1) {
+    const complaint = complaints[i];
+    const handled = complaint.status !== 'pending';
+    await prisma.complaint.create({
+      data: {
+        code: `TS${dayjs().format('YYYY')}${pad(i + 1, 6)}`,
+        type: complaint.type,
+        content: complaint.content,
+        contactName: (buyerUsers[i % buyerUsers.length] as (typeof buyerUsers)[number]).name,
+        contactPhone: (buyerUsers[i % buyerUsers.length] as (typeof buyerUsers)[number]).phone,
+        listingId: listings[i % listings.length].id,
+        complainantUserId: (buyerUsers[i % buyerUsers.length] as (typeof buyerUsers)[number]).id,
+        status: complaint.status,
+        handlerId: handled ? admin.id : null,
+        handlerName: handled ? admin.name : null,
+        handleComment: handled
+          ? complaint.status === 'resolved'
+            ? '已联系经纪人核实并回访客户，问题已解决。'
+            : complaint.status === 'processing'
+              ? '已转交门店店长处理，预计 24 小时内反馈。'
+              : '该诉求不在平台服务范围内，已向客户说明。'
+          : null,
+        handledAt: handled ? daysAgo(randInt(1, 6)) : null,
+        createdAt: daysAgo(randInt(2, 15)),
+      },
+    });
+  }
+
+  const roleMenus: Record<string, string[]> = {
+    agent: ['/admin', '/admin/listings', '/admin/approvals', '/admin/consultations', '/admin/customers', '/admin/showings', '/admin/contracts', '/admin/progress', '/admin/loans', '/admin/escrows', '/admin/transfers'],
+    store_manager: ['/admin', '/admin/listings', '/admin/approvals', '/admin/consultations', '/admin/customers', '/admin/showings', '/admin/contracts', '/admin/progress', '/admin/loans', '/admin/escrows', '/admin/transfers', '/admin/commissions', '/admin/agencies', '/admin/stats'],
+    finance: ['/admin', '/admin/contracts', '/admin/progress', '/admin/loans', '/admin/escrows', '/admin/transfers', '/admin/commissions', '/admin/finance', '/admin/stats'],
+    admin: ['/admin', '/admin/listings', '/admin/approvals', '/admin/consultations', '/admin/communities', '/admin/customers', '/admin/showings', '/admin/contracts', '/admin/progress', '/admin/loans', '/admin/escrows', '/admin/transfers', '/admin/commissions', '/admin/agencies', '/admin/stats', '/admin/audit', '/admin/logs', '/admin/users', '/admin/complaints', '/admin/dicts', '/admin/templates'],
+  };
+  for (const [role, keys] of Object.entries(roleMenus)) {
+    await prisma.roleMenuConfig.create({ data: { role, menuKeysJson: JSON.stringify(keys) } });
+  }
+
+  for (let i = 0; i < signedContracts.length; i += 1) {
+    const contract = signedContracts[i];
+    await prisma.contract.update({
+      where: { id: contract.id },
+      data: { customTerms: i % 2 === 0 ? '补充条款：交房前房屋内固定装修及家电家具按现状保留，具体以《交房清单》为准。' : '' },
+    });
+  }
+
   // ---------- 通知 ----------
   const notifUsers = [...buyerUsers, ...sellerUsers, ...agentUsers, ...managers];
   for (let i = 0; i < 40; i += 1) {
@@ -1064,6 +1146,8 @@ async function main(): Promise<void> {
   console.log(`  价格历史 ${await prisma.priceHistory.count()} / 审批 ${await prisma.approvalRequest.count()} / 咨询 ${await prisma.consultation.count()}`);
   console.log(`  贷款 ${await prisma.loanApplication.count()} / 评估 ${await prisma.appraisalOrder.count()} / 监管账户 ${await prisma.escrowAccount.count()}（流水 ${await prisma.escrowTransaction.count()}）`);
   console.log(`  材料 ${await prisma.materialChecklist.count()} / 税费 ${await prisma.taxRecord.count()} / 预约 ${await prisma.transferAppointment.count()} / 登记 ${await prisma.registrationApplication.count()} / 佣金 ${await prisma.commissionSettlement.count()}（分摊 ${await prisma.commissionAllocation.count()}）`);
+  console.log(`  佣金规则 ${await prisma.commissionRule.count()} / 审批流配置 ${await prisma.approvalFlowConfig.count()}`);
+  console.log(`  客户跟进 ${await prisma.customerFollowUp.count()} / 投诉 ${await prisma.complaint.count()} / 角色菜单 ${await prisma.roleMenuConfig.count()}`);
 }
 
 main()

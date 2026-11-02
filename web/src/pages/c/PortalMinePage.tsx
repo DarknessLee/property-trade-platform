@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+﻿import { useEffect, useState } from 'react';
 import {
   Alert,
   App as AntdApp,
@@ -14,6 +14,7 @@ import {
   List,
   Modal,
   Row,
+  Select,
   Space,
   Spin,
   Steps,
@@ -29,8 +30,8 @@ import type { ColumnsType } from 'antd/es/table';
 import { useAuth } from '../../auth/AuthContext';
 import { apiGet, apiPatch, apiPost, errorMessage, http } from '../../api/client';
 import { TOKEN_KEY } from '../../api/client';
-import type { ConsultationItem, Contract, ProgressNode, Showing } from '../../types';
-import { CONTRACT_STATUS, PROGRESS_NODES, PROGRESS_STATUS, SHOWING_STATUS } from '../../types';
+import type { ComplaintItem, ConsultationItem, Contract, ProgressNode, Showing } from '../../types';
+import { COMPLAINT_STATUS, COMPLAINT_TYPE, CONTRACT_STATUS, PROGRESS_NODES, PROGRESS_STATUS, SHOWING_STATUS } from '../../types';
 import { formatDate, toWan } from '../../utils/format';
 
 const { Title, Text } = Typography;
@@ -104,6 +105,16 @@ export default function PortalMinePage(): JSX.Element {
     }
   };
 
+  const [complaints, setComplaints] = useState<ComplaintItem[]>([]);
+  const [complaintForm] = Form.useForm<{ type: string; content: string }>();
+  const loadComplaints = async (): Promise<void> => {
+    try {
+      setComplaints(await apiGet<ComplaintItem[]>('/complaints/my'));
+    } catch {
+      setComplaints([]);
+    }
+  };
+
   useEffect(() => {
     if (!user) return;
     void apiGet<{ items: NotificationItem[]; unreadCount: number }>('/notifications')
@@ -115,6 +126,7 @@ export default function PortalMinePage(): JSX.Element {
     void loadShowings();
     void loadContracts();
     void loadConsultations();
+    void loadComplaints();
   }, [user]);
 
   if (loading) {
@@ -368,6 +380,64 @@ export default function PortalMinePage(): JSX.Element {
                         </List.Item>
                       )}
                     />
+                  ),
+                },
+                {
+                  key: 'complaints',
+                  label: `投诉建议（${complaints.length}）`,
+                  children: (
+                    <>
+                      <Form form={complaintForm} layout="vertical" initialValues={{ type: 'listing_quality' }}>
+                        <Form.Item name="type" label="投诉类型" rules={[{ required: true }]}>
+                          <Select options={Object.entries(COMPLAINT_TYPE).map(([value, label]) => ({ value, label }))} />
+                        </Form.Item>
+                        <Form.Item name="content" label="投诉/建议内容" rules={[{ required: true, message: '请填写内容' }]}>
+                          <Input.TextArea rows={3} maxLength={500} showCount placeholder="请描述遇到的问题，平台将安排专人核实处理" data-testid="complaint-content" />
+                        </Form.Item>
+                        <Button
+                          type="primary"
+                          onClick={async () => {
+                            try {
+                              const values = await complaintForm.validateFields();
+                              await apiPost('/complaints', { ...values, contactName: user.name, contactPhone: user.phone });
+                              message.success('投诉已提交，管理员将尽快处理');
+                              complaintForm.resetFields();
+                              await loadComplaints();
+                            } catch (error) {
+                              if (error instanceof Error) message.error(errorMessage(error));
+                            }
+                          }}
+                          data-testid="btn-submit-complaint"
+                        >
+                          提交投诉
+                        </Button>
+                      </Form>
+                      <Divider />
+                      <List
+                        dataSource={complaints}
+                        locale={{ emptyText: '暂无投诉记录' }}
+                        renderItem={(item) => (
+                          <List.Item>
+                            <List.Item.Meta
+                              title={
+                                <Space>
+                                  <span style={{ fontWeight: 600 }}>{COMPLAINT_TYPE[item.type] ?? item.type}</span>
+                                  <Tag color={COMPLAINT_STATUS[item.status]?.color}>{COMPLAINT_STATUS[item.status]?.label}</Tag>
+                                  <Text type="secondary" style={{ fontSize: 12 }}>{item.code}</Text>
+                                </Space>
+                              }
+                              description={
+                                <div>
+                                  <div style={{ color: '#4b5563' }}>{item.content}</div>
+                                  {item.handleComment && <div style={{ color: '#1677ff', fontSize: 13, marginTop: 4 }}>平台回复：{item.handleComment}</div>}
+                                  <Text type="secondary" style={{ fontSize: 12 }}>{new Date(item.createdAt).toLocaleString('zh-CN')}</Text>
+                                </div>
+                              }
+                            />
+                          </List.Item>
+                        )}
+                      />
+                    </>
                   ),
                 },
                 {

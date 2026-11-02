@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
 import { CustomersService } from './customers.service';
-import { CreateCustomerDto, ListCustomersQueryDto, ProtectCustomerDto, UpdateCustomerDto } from './dto';
+import { AddFollowUpDto, CreateCustomerDto, ListCustomersQueryDto, ProtectCustomerDto, UpdateCustomerDto } from './dto';
 
 @Controller('customers')
 export class CustomersController {
@@ -17,6 +17,24 @@ export class CustomersController {
   @Roles('agent', 'store_manager', 'admin')
   options(@CurrentUser() user: AuthUser): Promise<Array<{ id: string; name: string; phone: string; type: string; level: string }>> {
     return this.customers.options(user);
+  }
+
+  @Get(':id/follow-ups')
+  @Roles('agent', 'store_manager', 'admin')
+  followUps(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<unknown[]> {
+    return this.customers.followUps(user, id);
+  }
+
+  @Post(':id/follow-ups')
+  @Roles('agent', 'store_manager', 'admin')
+  addFollowUp(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: AddFollowUpDto): Promise<unknown> {
+    return this.customers.addFollowUp(user, id, dto);
+  }
+
+  @Get(':id/matches')
+  @Roles('agent', 'store_manager', 'admin')
+  matches(@CurrentUser() user: AuthUser, @Param('id') id: string): Promise<Array<Record<string, unknown>>> {
+    return this.customers.matches(user, id);
   }
 
   @Get(':id')

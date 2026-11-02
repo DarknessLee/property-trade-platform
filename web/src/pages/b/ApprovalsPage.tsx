@@ -104,15 +104,29 @@ export default function ApprovalsPage(): JSX.Element {
       ),
     },
     {
-      title: '调价',
-      width: 180,
+      title: '类型',
+      width: 120,
       render: (_, record) => (
-        <div>
-          <span style={{ color: '#8a9099', textDecoration: 'line-through' }}>{toWan(record.payload.oldTotalPrice ?? 0)} 万</span>
-          <span style={{ margin: '0 6px', color: '#d9d9d9' }}>→</span>
-          <span style={{ color: '#f5222d', fontWeight: 600 }}>{toWan(record.payload.newTotalPrice ?? 0)} 万</span>
-        </div>
+        <Tag color={record.type === 'price_change' ? 'blue' : 'purple'}>
+          {record.typeLabel ?? (record.type === 'price_change' ? '调价审批' : record.type === 'key_handover' ? '钥匙委托' : '审批单')}
+        </Tag>
       ),
+    },
+    {
+      title: '申请内容',
+      width: 220,
+      render: (_, record) =>
+        record.type === 'price_change' ? (
+          <div>
+            <span style={{ color: '#8a9099', textDecoration: 'line-through' }}>{toWan(record.payload.oldTotalPrice ?? 0)} 万</span>
+            <span style={{ margin: '0 6px', color: '#d9d9d9' }}>→</span>
+            <span style={{ color: '#f5222d', fontWeight: 600 }}>{toWan(record.payload.newTotalPrice ?? 0)} 万</span>
+          </div>
+        ) : record.type === 'key_handover' ? (
+          <span style={{ color: '#4b5563' }}>钥匙 {record.payload.keyCount ?? 1} 把 → {record.payload.handoverTo ?? '—'}</span>
+        ) : (
+          <span style={{ color: '#4b5563' }}>{record.reason}</span>
+        ),
     },
     { title: '申请人', width: 100, render: (_, record) => record.requester.name },
     { title: '申请原因', render: (_, record) => <span style={{ color: '#6b7280', fontSize: 12 }}>{record.reason}</span> },

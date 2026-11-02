@@ -45,6 +45,36 @@ export class ContractsService {
     return this.prisma.contractTemplate.findMany({ where: { isActive: true }, orderBy: { createdAt: 'asc' } });
   }
 
+  async templatesAdmin(): Promise<unknown[]> {
+    return this.prisma.contractTemplate.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  async createTemplate(operator: AuthUser, dto: { name: string; version: string; content: string; isActive?: boolean }): Promise<unknown> {
+    const exists = await this.prisma.contractTemplate.findFirst({ where: { name: dto.name, version: dto.version } });
+    if (exists) throw new BadRequestException({ code: ERROR_CODES.CONFLICT, message: '同名同版本模板已存在' });
+    const template = await this.prisma.contractTemplate.create({
+      data: { name: dto.name, version: dto.version, content: dto.content, isActive: dto.isActive ?? true },
+    });
+    await this.audit.record('create_template', 'contract_template', template.id, { name: dto.name, version: dto.version });
+    return template;
+  }
+
+  async updateTemplate(operator: AuthUser, id: string, dto: { name?: string; version?: string; content?: string; isActive?: boolean }): Promise<unknown> {
+    const template = await this.prisma.contractTemplate.findUnique({ where: { id } });
+    if (!template) throw new NotFoundException({ code: ERROR_CODES.NOT_FOUND, message: '合同模板不存在' });
+    const updated = await this.prisma.contractTemplate.update({
+      where: { id },
+      data: {
+        ...(dto.name !== undefined ? { name: dto.name } : {}),
+        ...(dto.version !== undefined ? { version: dto.version } : {}),
+        ...(dto.content !== undefined ? { content: dto.content } : {}),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
+      },
+    });
+    await this.audit.record('update_template', 'contract_template', id, { isActive: dto.isActive });
+    return updated;
+  }
+
   async list(user: AuthUser, query: ListContractsQueryDto): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
     const where = await this.scopeWhere(user);
     const page = query.page ?? 1;
@@ -160,6 +190,7 @@ export class ContractsService {
         depositAmount,
         signStatus: 'draft',
         contentSnapshot,
+        customTerms: dto.terms?.trim() ?? '',
         progress: {
           create: [
             { nodeType: 'sign', sortOrder: 1, status: 'todo' },
@@ -410,6 +441,7 @@ export class ContractsService {
       agency: { id: row.agency.id, name: row.agency.name },
       template: { id: row.template.id, name: row.template.name, version: row.template.version },
       contentSnapshot: row.contentSnapshot,
+      customTerms: row.customTerms,
       depositAmount: row.depositAmount,
       voidedAt: row.voidedAt,
       signMethod: row.signMethod,

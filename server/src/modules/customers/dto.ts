@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import {
   ArrayMaxSize,
   IsArray,
+  IsDateString,
   IsIn,
   IsInt,
   IsNotEmpty,
@@ -14,6 +15,22 @@ import {
   MinLength,
   Matches,
 } from 'class-validator';
+
+export class AddFollowUpDto {
+  @IsString()
+  @IsNotEmpty({ message: '请填写跟进内容' })
+  @MaxLength(500)
+  content!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  nextAction?: string;
+
+  @IsOptional()
+  @IsDateString({}, { message: '下次跟进时间格式不正确' })
+  nextFollowAt?: string;
+}
 
 export class CreateCustomerDto {
   @IsString()

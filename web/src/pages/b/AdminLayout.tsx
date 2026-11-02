@@ -5,6 +5,7 @@ import {
   AuditOutlined,
   BankOutlined,
   BarChartOutlined,
+  BookOutlined,
   CalendarOutlined,
   DashboardOutlined,
   FileDoneOutlined,
@@ -16,9 +17,11 @@ import {
   MessageOutlined,
   MoneyCollectOutlined,
   NodeIndexOutlined,
+  ProfileOutlined,
   TeamOutlined,
   UserOutlined,
   WalletOutlined,
+  WarningOutlined,
 } from '@ant-design/icons';
 import { Link, Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
@@ -54,7 +57,10 @@ const MENU_DEFS: MenuDef[] = [
   { key: '/admin/agencies', label: '门店与经纪人', icon: <BankOutlined />, roles: ['store_manager', 'admin'] },
   { key: '/admin/stats', label: '业绩统计', icon: <BarChartOutlined />, roles: ['store_manager', 'finance', 'admin'] },
   { key: '/admin/audit', label: '后台审核', icon: <AuditOutlined />, roles: ['admin'] },
+  { key: '/admin/complaints', label: '投诉审核', icon: <WarningOutlined />, roles: ['admin'] },
   { key: '/admin/logs', label: '操作日志', icon: <HistoryOutlined />, roles: ['admin'] },
+  { key: '/admin/dicts', label: '数据字典', icon: <BookOutlined />, roles: ['admin'] },
+  { key: '/admin/templates', label: '合同模板', icon: <ProfileOutlined />, roles: ['admin'] },
   { key: '/admin/users', label: '账号权限', icon: <UserOutlined />, roles: ['admin'] },
 ];
 
@@ -63,6 +69,7 @@ export default function AdminLayout(): JSX.Element {
   const location = useLocation();
   const navigate = useNavigate();
   const [unread, setUnread] = useState(0);
+  const [allowedMenus, setAllowedMenus] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -71,14 +78,23 @@ export default function AdminLayout(): JSX.Element {
       .catch(() => setUnread(0));
   }, [user]);
 
+  useEffect(() => {
+    if (!user || user.role === 'buyer' || user.role === 'seller') return;
+    void apiGet<{ menuKeys: string[] }>('/admin/menu-config/my')
+      .then((data) => setAllowedMenus(data.menuKeys))
+      .catch(() => setAllowedMenus(null));
+  }, [user]);
+
   const menuItems = useMemo(
     () =>
-      MENU_DEFS.filter((item) => (user ? item.roles.includes(user.role) : false)).map((item) => ({
-        key: item.key,
-        icon: item.icon,
-        label: <Link to={item.key}>{item.label}</Link>,
-      })),
-    [user],
+      MENU_DEFS.filter((item) => (user ? item.roles.includes(user.role) : false))
+        .filter((item) => !allowedMenus || allowedMenus.includes(item.key))
+        .map((item) => ({
+          key: item.key,
+          icon: item.icon,
+          label: <Link to={item.key}>{item.label}</Link>,
+        })),
+    [user, allowedMenus],
   );
 
   if (loading) return <div style={{ padding: 80, textAlign: 'center' }}>加载中…</div>;

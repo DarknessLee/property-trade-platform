@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, StreamableFile } from '@nestjs/common';
 import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
 import { ContractsService } from './contracts.service';
-import { CreateContractDto, ListContractsQueryDto, SignContractDto, UpdateProgressDto } from './dto';
+import { CreateContractDto, CreateTemplateDto, ListContractsQueryDto, SignContractDto, UpdateProgressDto, UpdateTemplateDto } from './dto';
 
 @Controller('contracts')
 export class ContractsController {
@@ -11,6 +11,24 @@ export class ContractsController {
   @Roles('agent', 'store_manager', 'finance', 'admin', 'buyer', 'seller')
   templates(): Promise<unknown[]> {
     return this.contracts.templates();
+  }
+
+  @Get('templates/all')
+  @Roles('admin')
+  templatesAdmin(): Promise<unknown[]> {
+    return this.contracts.templatesAdmin();
+  }
+
+  @Post('templates')
+  @Roles('admin')
+  createTemplate(@CurrentUser() user: AuthUser, @Body() dto: CreateTemplateDto): Promise<unknown> {
+    return this.contracts.createTemplate(user, dto);
+  }
+
+  @Patch('templates/:id')
+  @Roles('admin')
+  updateTemplate(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body() dto: UpdateTemplateDto): Promise<unknown> {
+    return this.contracts.updateTemplate(user, id, dto);
   }
 
   @Get()

@@ -1,5 +1,5 @@
-import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+﻿import { Type } from 'class-transformer';
+import { IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator';
 
 export class UpdateApprovalConfigDto {
   @IsIn(['price_change', 'contract_void', 'key_handover'])
@@ -23,6 +23,28 @@ export class CreatePriceApprovalDto {
   @IsNotEmpty({ message: '请填写调价原因' })
   @MaxLength(200)
   reason!: string;
+}
+
+export class CreateKeyHandoverDto {
+  @IsString()
+  @IsNotEmpty({ message: '请选择房源' })
+  listingId!: string;
+
+  @Type(() => Number)
+  @IsInt()
+  @Min(1, { message: '钥匙数量至少 1 把' })
+  @Max(20)
+  keyCount!: number;
+
+  @IsString()
+  @IsNotEmpty({ message: '请填写受托方' })
+  @MaxLength(50)
+  handoverTo!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  remark?: string;
 }
 
 export class ReviewApprovalDto {

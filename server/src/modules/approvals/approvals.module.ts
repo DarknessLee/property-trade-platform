@@ -1,7 +1,7 @@
-import { Body, Controller, Get, Module, Param, Post, Put, Query } from '@nestjs/common';
+﻿import { Body, Controller, Get, Module, Param, Post, Put, Query } from '@nestjs/common';
 import { CurrentUser, Roles, type AuthUser } from '../../common/decorators';
 import { ApprovalsService } from './approvals.service';
-import { CreatePriceApprovalDto, ListApprovalQueryDto, ReviewApprovalDto, UpdateApprovalConfigDto } from './dto';
+import { CreateKeyHandoverDto, CreatePriceApprovalDto, ListApprovalQueryDto, ReviewApprovalDto, UpdateApprovalConfigDto } from './dto';
 
 @Controller('approvals')
 export class ApprovalsController {
@@ -35,6 +35,12 @@ export class ApprovalsController {
   @Roles('agent', 'store_manager', 'admin')
   createPriceChange(@CurrentUser() user: AuthUser, @Body() dto: CreatePriceApprovalDto): Promise<unknown> {
     return this.approvals.createPriceChange(user, dto);
+  }
+
+  @Post('key-handover')
+  @Roles('agent', 'store_manager', 'admin')
+  createKeyHandover(@CurrentUser() user: AuthUser, @Body() dto: CreateKeyHandoverDto): Promise<unknown> {
+    return this.approvals.createKeyHandover(user, dto);
   }
 
   @Post(':id/approve')

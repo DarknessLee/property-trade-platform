@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+﻿import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from './prisma/prisma.module';
@@ -26,6 +26,7 @@ import { LoansModule } from './modules/loans/loans.module';
 import { EscrowsModule } from './modules/escrows/escrows.module';
 import { TransfersModule } from './modules/transfers/transfers.module';
 import { CommissionsModule } from './modules/commissions/commissions.module';
+import { ComplaintsModule } from './modules/complaints/complaints.module';
 
 export const JWT_SECRET = process.env.JWT_SECRET ?? 'property-trade-platform-demo-secret-2026';
 
@@ -59,6 +60,7 @@ export const JWT_SECRET = process.env.JWT_SECRET ?? 'property-trade-platform-dem
     EscrowsModule,
     TransfersModule,
     CommissionsModule,
+    ComplaintsModule,
   ],
   controllers: [HealthController],
   providers: [

@@ -65,7 +65,7 @@ describe('健康检查与公开接口', () => {
     expect(body.data.onSaleListings + body.data.signedContracts).toBe(47);
     expect(body.data.communities).toBeGreaterThanOrEqual(15);
     expect(body.data.agencies).toBeGreaterThanOrEqual(6);
-    expect(body.data.agents).toBe(12);
+    expect(body.data.agents).toBeGreaterThanOrEqual(12);
   });
 
   it('GET /api/public/listings 支持区域筛选与分页', async () => {

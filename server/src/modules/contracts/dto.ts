@@ -1,4 +1,4 @@
-import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { IsBoolean, IsDateString, IsIn, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, Matches, Max, MaxLength, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateContractDto {
@@ -29,6 +29,51 @@ export class CreateContractDto {
   @IsInt()
   @Min(0)
   depositAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  terms?: string;
+}
+
+export class CreateTemplateDto {
+  @IsString()
+  @IsNotEmpty({ message: '请填写模板名称' })
+  @MaxLength(50)
+  name!: string;
+
+  @IsString()
+  @IsNotEmpty({ message: '请填写版本' })
+  @MaxLength(20)
+  version!: string;
+
+  @IsString()
+  @IsNotEmpty({ message: '请填写模板正文' })
+  content!: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+}
+
+export class UpdateTemplateDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(50)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  version?: string;
+
+  @IsOptional()
+  @IsString()
+  content?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
 
 export class ListContractsQueryDto {

@@ -110,9 +110,10 @@ export interface ApprovalItem {
   id: string;
   code: string;
   type: string;
+  typeLabel?: string;
   status: 'pending' | 'level1_approved' | 'approved' | 'rejected' | 'cancelled';
   reason: string;
-  payload: { oldTotalPrice?: number; newTotalPrice?: number; oldUnitPrice?: number; newUnitPrice?: number; reason?: string };
+  payload: { oldTotalPrice?: number; newTotalPrice?: number; oldUnitPrice?: number; newUnitPrice?: number; reason?: string; keyCount?: number; handoverTo?: string; remark?: string };
   reviewComment: string | null;
   requester: { id: string; name: string };
   approver: { id: string; name: string } | null;
@@ -259,6 +260,8 @@ export interface ContractTemplate {
   name: string;
   version: string;
   content: string;
+  isActive?: boolean;
+  createdAt?: string;
 }
 
 export interface ProgressNode {
@@ -283,13 +286,15 @@ export interface Contract {
   voidedAt?: string | null;
   esignNo: string | null;
   signMethod?: string | null;
+  customTerms?: string;
+  contentSnapshot?: string;
   listing: { id: string; title: string; code: string; community: { name: string; district: string }; totalPrice: number; area: number };
   buyer: { id: string; name: string; phone: string };
   seller: { id: string; name: string; phone: string };
   agent: { id: string; name: string };
   agency?: { id: string; name: string };
   template?: { id: string; name: string; version: string };
-  contentSnapshot?: string;
+
   progressDone: number;
   progressTotal: number;
   progress?: ProgressNode[];
@@ -435,6 +440,75 @@ export const LOAN_STATUS: Record<string, { label: string; color: string }> = {
   approved: { label: '已批贷', color: 'blue' },
   rejected: { label: '已拒绝', color: 'red' },
   disbursed: { label: '已放款', color: 'green' },
+};
+
+// ---------- E4：跟进/匹配/投诉/配置 ----------
+export interface FollowUpItem {
+  id: string;
+  customerId: string;
+  content: string;
+  nextAction: string | null;
+  nextFollowAt: string | null;
+  createdByName: string;
+  createdAt: string;
+}
+
+export interface MatchItem {
+  id: string;
+  code: string;
+  title: string;
+  area: number;
+  rooms: number;
+  totalPrice: number;
+  unitPrice: number;
+  community: { name: string; district: string };
+  agentName: string;
+  score: number;
+  reasons: string[];
+}
+
+export interface ComplaintItem {
+  id: string;
+  code: string;
+  type: string;
+  content: string;
+  contactName: string;
+  contactPhone: string;
+  status: 'pending' | 'processing' | 'resolved' | 'rejected';
+  handlerName: string | null;
+  handleComment: string | null;
+  handledAt: string | null;
+  createdAt: string;
+  listing: { id: string; title: string; code: string; community?: { name: string } } | null;
+}
+
+export interface DictItem {
+  id: string;
+  category: string;
+  key: string;
+  label: string;
+  value: string | null;
+  sortOrder: number;
+}
+
+export interface MenuConfigItem {
+  role: string;
+  menuKeys: string[];
+}
+
+export const COMPLAINT_TYPE: Record<string, string> = {
+  listing_quality: '房源质量',
+  service: '服务态度',
+  price: '价格违规',
+  false_info: '虚假信息',
+  other: '其他',
+};
+
+export const COMPLAINT_STATUS: Record<string, { label: string; color: string }> = {
+  pending: { label: '待处理', color: 'gold' },
+  processing: { label: '处理中', color: 'blue' },
+  resolved: { label: '已解决', color: 'green' },
+  rejected: { label: '已驳回', color: 'default' },
 };
 
 export const TRANSFER_STATUS: Record<string, { label: string; color: string }> = {

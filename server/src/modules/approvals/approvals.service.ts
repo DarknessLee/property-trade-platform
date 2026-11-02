@@ -98,7 +98,7 @@ export class ApprovalsService {
       include: APPROVAL_INCLUDE,
     });
     await this.audit.record('create_approval', 'approval', approval.id, { type: 'price_change', code });
-    await this.notifyApprovers(listing.agencyId, approval.id, code, listing.title, listing.totalPrice, dto.newTotalPrice);
+    await this.notifyApprovers(listing.agencyId, approval.id, code, listing.title, `调价：${listing.totalPrice.toLocaleString()} → ${dto.newTotalPrice.toLocaleString()} 元`);
     return this.toDto(approval);
   }
 
@@ -118,7 +118,7 @@ export class ApprovalsService {
         include: APPROVAL_INCLUDE,
       });
       await this.audit.record('approve_approval_level1', 'approval', id, { code: row.code });
-      await this.notifyAdmins('调价审批待终审', `房源「${row.listing?.title ?? ''}」调价申请（${row.code}）已经店长初审通过，请管理员终审。`, id);
+      await this.notifyAdmins(`${this.typeLabel(row.type)}待终审`, `「${row.listing?.title ?? ''}」${this.typeLabel(row.type)}（${row.code}）已经店长初审通过，请管理员终审。`, id);
       return this.toDto(approval);
     }
 
@@ -129,31 +129,43 @@ export class ApprovalsService {
       throw new BadRequestException({ code: ERROR_CODES.BUSINESS_RULE, message: '该审批单已处理，不能重复审批' });
     }
 
-    const payload = JSON.parse(row.payloadJson) as { oldTotalPrice: number; newTotalPrice: number; oldUnitPrice: number; newUnitPrice: number };
     const reviewedAt = new Date();
-    const [approval] = await this.prisma.$transaction([
-      this.prisma.approvalRequest.update({
+    let approval: ApprovalRow;
+    if (row.type === 'price_change') {
+      const payload = JSON.parse(row.payloadJson) as { oldTotalPrice: number; newTotalPrice: number; oldUnitPrice: number; newUnitPrice: number };
+      const [updated] = await this.prisma.$transaction([
+        this.prisma.approvalRequest.update({
+          where: { id },
+          data: { status: 'approved', approverId: user.id, approverName: user.name, reviewComment: dto.comment ?? '同意调价', reviewedAt },
+          include: APPROVAL_INCLUDE,
+        }),
+        this.prisma.houseListing.update({
+          where: { id: row.listingId as string },
+          data: { totalPrice: payload.newTotalPrice, unitPrice: payload.newUnitPrice },
+        }),
+        this.prisma.priceHistory.create({
+          data: {
+            listingId: row.listingId as string,
+            price: payload.newTotalPrice,
+            unitPrice: payload.newUnitPrice,
+            source: 'approval',
+            remark: `调价审批通过（${row.code}）`,
+            changedAt: reviewedAt,
+          },
+        }),
+      ]);
+      approval = updated;
+      await this.audit.record('approve_approval', 'approval', id, { code: row.code, newTotalPrice: payload.newTotalPrice });
+      await this.notify(row.requesterId, 'approval', '调价审批已通过', `房源「${row.listing?.title ?? ''}」调价申请（${row.code}）已通过，挂牌价已更新为 ${payload.newTotalPrice.toLocaleString()} 元。`, id);
+    } else {
+      approval = await this.prisma.approvalRequest.update({
         where: { id },
-        data: { status: 'approved', approverId: user.id, approverName: user.name, reviewComment: dto.comment ?? '同意调价', reviewedAt },
+        data: { status: 'approved', approverId: user.id, approverName: user.name, reviewComment: dto.comment ?? '同意', reviewedAt },
         include: APPROVAL_INCLUDE,
-      }),
-      this.prisma.houseListing.update({
-        where: { id: row.listingId as string },
-        data: { totalPrice: payload.newTotalPrice, unitPrice: payload.newUnitPrice },
-      }),
-      this.prisma.priceHistory.create({
-        data: {
-          listingId: row.listingId as string,
-          price: payload.newTotalPrice,
-          unitPrice: payload.newUnitPrice,
-          source: 'approval',
-          remark: `调价审批通过（${row.code}）`,
-          changedAt: reviewedAt,
-        },
-      }),
-    ]);
-    await this.audit.record('approve_approval', 'approval', id, { code: row.code, newTotalPrice: payload.newTotalPrice });
-    await this.notify(row.requesterId, 'approval', '调价审批已通过', `房源「${row.listing?.title ?? ''}」调价申请（${row.code}）已通过，挂牌价已更新为 ${payload.newTotalPrice.toLocaleString()} 元。`, id);
+      });
+      await this.audit.record('approve_approval', 'approval', id, { code: row.code, type: row.type });
+      await this.notify(row.requesterId, 'approval', `${this.typeLabel(row.type)}已通过`, `房源「${row.listing?.title ?? ''}」${this.typeLabel(row.type)}（${row.code}）已通过审批。`, id);
+    }
     return this.toDto(approval);
   }
 
@@ -168,7 +180,53 @@ export class ApprovalsService {
       include: APPROVAL_INCLUDE,
     });
     await this.audit.record('reject_approval', 'approval', id, { code: row.code, comment: dto.comment });
-    await this.notify(row.requesterId, 'approval', '调价审批被驳回', `房源「${row.listing?.title ?? ''}」调价申请（${row.code}）被驳回：${dto.comment}`, id);
+    await this.notify(row.requesterId, 'approval', `${this.typeLabel(row.type)}被驳回`, `房源「${row.listing?.title ?? ''}」${this.typeLabel(row.type)}（${row.code}）被驳回：${dto.comment}`, id);
+    return this.toDto(approval);
+  }
+
+  /** 发起钥匙委托审批（E4） */
+  async createKeyHandover(user: AuthUser, dto: { listingId: string; keyCount: number; handoverTo: string; remark?: string }): Promise<unknown> {
+    const listing = await this.prisma.houseListing.findFirst({
+      where: { id: dto.listingId, isDeleted: false },
+      include: { agent: { include: { user: true } } },
+    });
+    if (!listing) throw new NotFoundException({ code: ERROR_CODES.NOT_FOUND, message: '房源不存在' });
+    if (!['on_sale', 'signed'].includes(listing.status)) {
+      throw new BadRequestException({ code: ERROR_CODES.BUSINESS_RULE, message: '仅「在售/已签约」房源可发起钥匙委托' });
+    }
+    if (user.role === 'agent') {
+      const agent = await this.prisma.agent.findUnique({ where: { userId: user.id }, select: { id: true } });
+      if (!agent || listing.agentId !== agent.id) {
+        throw new ForbiddenException({ code: ERROR_CODES.FORBIDDEN, message: '只能为本人维护的房源发起钥匙委托' });
+      }
+    } else if (user.role === 'store_manager' && listing.agencyId !== user.agencyId) {
+      throw new ForbiddenException({ code: ERROR_CODES.FORBIDDEN, message: '只能为本店房源发起钥匙委托' });
+    }
+    const pending = await this.prisma.approvalRequest.findFirst({ where: { listingId: listing.id, type: 'key_handover', status: { in: ['pending', 'level1_approved'] } } });
+    if (pending) throw new BadRequestException({ code: ERROR_CODES.CONFLICT, message: `该房源已有待审批的钥匙委托（${pending.code}）` });
+
+    const code = await this.nextCode();
+    const approval = await this.prisma.approvalRequest.create({
+      data: {
+        code,
+        type: 'key_handover',
+        status: 'pending',
+        listingId: listing.id,
+        requesterId: user.id,
+        requesterName: user.name,
+        payloadJson: JSON.stringify({ keyCount: dto.keyCount, handoverTo: dto.handoverTo, remark: dto.remark ?? '' }),
+        reason: dto.remark?.trim() || `钥匙 ${dto.keyCount} 把委托至 ${dto.handoverTo}`,
+      },
+      include: APPROVAL_INCLUDE,
+    });
+    await this.audit.record('create_approval', 'approval', approval.id, { type: 'key_handover', code });
+    await this.notifyApprovers(
+      listing.agencyId,
+      approval.id,
+      code,
+      listing.title,
+      `钥匙委托：${dto.keyCount} 把，受托方「${dto.handoverTo}」${dto.remark ? `，备注：${dto.remark}` : ''}`,
+    );
     return this.toDto(approval);
   }
 
@@ -221,7 +279,7 @@ export class ApprovalsService {
     }
   }
 
-  private async notifyApprovers(agencyId: string, approvalId: string, code: string, listingTitle: string, oldPrice: number, newPrice: number): Promise<void> {
+  private async notifyApprovers(agencyId: string, approvalId: string, code: string, listingTitle: string, detail: string): Promise<void> {
     const managers = await this.prisma.user.findMany({ where: { role: 'store_manager', agencyId, status: 'active' }, select: { id: true } });
     const admins = await this.prisma.user.findMany({ where: { role: 'admin', status: 'active' }, select: { id: true } });
     for (const target of [...managers, ...admins]) {
@@ -229,13 +287,17 @@ export class ApprovalsService {
         data: {
           userId: target.id,
           type: 'approval',
-          title: '新的调价审批',
-          content: `房源「${listingTitle}」申请调价：${oldPrice.toLocaleString()} → ${newPrice.toLocaleString()} 元（${code}），请及时审批。`,
+          title: '新的审批单',
+          content: `房源「${listingTitle}」审批（${code}）：${detail}，请及时审批。`,
           bizType: 'approval',
           bizId: approvalId,
         },
       });
     }
+  }
+
+  private typeLabel(type: string): string {
+    return { price_change: '调价审批', key_handover: '钥匙委托审批', contract_void: '合同作废审批' }[type] ?? '审批单';
   }
 
   private async notify(userId: string, type: string, title: string, content: string, bizId: string): Promise<void> {
@@ -260,6 +322,7 @@ export class ApprovalsService {
       id: row.id,
       code: row.code,
       type: row.type,
+      typeLabel: this.typeLabel(row.type),
       status: row.status,
       reason: row.reason,
       payload,

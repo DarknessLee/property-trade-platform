@@ -274,4 +274,50 @@ test.describe('角色截图', () => {
     await page.locator('[data-testid^="listing-card-"]').first().waitFor();
     await shot(page, '36-移动端-C端找房');
   });
+
+  test('37-B端-经纪人-客户跟进与匹配', async ({ page }) => {
+    await login(page, '13800000020');
+    await page.goto('/admin/customers');
+    await page.locator('.ant-table-row').first().waitFor();
+    await page.locator('.ant-table-row').filter({ hasText: '买方' }).first().getByRole('button', { name: /详\s*情/ }).click();
+    await page.locator('.ant-drawer-content').waitFor();
+    await shot(page, '37-B端-经纪人-客户跟进与匹配');
+  });
+
+  test('38-B端-管理员-开通账号', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/users');
+    await page.getByRole('button', { name: /开通账号/ }).click();
+    await page.locator('.ant-modal-content').waitFor();
+    await shot(page, '38-B端-管理员-开通账号');
+  });
+
+  test('39-B端-管理员-权限菜单配置', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/users');
+    await page.getByRole('tab', { name: '权限配置' }).click();
+    await page.waitForTimeout(400);
+    await shot(page, '39-B端-管理员-权限菜单配置');
+  });
+
+  test('40-B端-管理员-合同模板', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/templates');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '40-B端-管理员-合同模板');
+  });
+
+  test('41-B端-管理员-投诉审核', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/complaints');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '41-B端-管理员-投诉审核');
+  });
+
+  test('42-B端-管理员-数据字典', async ({ page }) => {
+    await login(page, '13800000001');
+    await page.goto('/admin/dicts');
+    await page.locator('.ant-table-row').first().waitFor();
+    await shot(page, '42-B端-管理员-数据字典');
+  });
 });

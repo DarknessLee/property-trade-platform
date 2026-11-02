@@ -252,6 +252,9 @@ export default function ContractsPage(): JSX.Element {
               <Select options={[0.01, 0.015, 0.02, 0.025].map((value) => ({ value, label: `${(value * 100).toFixed(1)}%` }))} />
             </Form.Item>
           </Space.Compact>
+          <Form.Item name="terms" label="补充条款（在线填写，可选）">
+            <Input.TextArea rows={4} maxLength={2000} showCount placeholder="如：交房前房屋内固定装修及家电家具按现状保留，具体以《交房清单》为准。" data-testid="contract-terms" />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -296,6 +299,14 @@ export default function ContractsPage(): JSX.Element {
             <pre style={{ background: '#fafbfc', padding: 12, borderRadius: 6, fontSize: 12, whiteSpace: 'pre-wrap', maxHeight: 220, overflow: 'auto' }}>
               {detail.contentSnapshot || detail.template?.name}
             </pre>
+            {detail.customTerms && (
+              <>
+                <Title level={5} style={{ marginTop: 16 }}>补充条款</Title>
+                <div style={{ background: '#fffbe6', border: '1px solid #ffe58f', borderRadius: 6, padding: 12, whiteSpace: 'pre-wrap', fontSize: 13 }}>
+                  {detail.customTerms}
+                </div>
+              </>
+            )}
 
             <Space wrap style={{ marginTop: 16 }}>
               {['draft', 'pending'].includes(detail.signStatus) && (

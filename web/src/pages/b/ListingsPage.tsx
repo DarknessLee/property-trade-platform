@@ -57,6 +57,8 @@ export default function ListingsPage(): JSX.Element {
   const [auditTarget, setAuditTarget] = useState<AdminListing | null>(null);
   const [priceTarget, setPriceTarget] = useState<AdminListing | null>(null);
   const [priceForm] = Form.useForm<{ newTotalPrice: number; reason: string }>();
+  const [keyTarget, setKeyTarget] = useState<AdminListing | null>(null);
+  const [keyForm] = Form.useForm<{ keyCount: number; handoverTo: string; remark?: string }>();
   const [auditForm] = Form.useForm<{ pass: boolean; reason?: string }>();
 
   const load = useCallback(async () => {
@@ -270,6 +272,11 @@ export default function ListingsPage(): JSX.Element {
                 </Button>
               )}
             </>
+          )}
+          {['on_sale', 'signed'].includes(record.status) && (
+            <Button size="small" type="link" onClick={() => { setKeyTarget(record); keyForm.setFieldsValue({ keyCount: 1, handoverTo: '', remark: '' }); }} data-testid={`btn-key-${record.code}`}>
+              钥匙委托
+            </Button>
           )}
         </Space>
       ),
@@ -540,6 +547,44 @@ export default function ListingsPage(): JSX.Element {
               </Form.Item>
             </Form>
             <div style={{ color: '#8a9099', fontSize: 12 }}>提交后进入审批中心，审批通过后挂牌价自动更新并写入价格历史。</div>
+          </>
+        )}
+      </Modal>
+
+      <Modal
+        title="钥匙委托审批申请"
+        open={Boolean(keyTarget)}
+        onCancel={() => setKeyTarget(null)}
+        okText="提交审批"
+        onOk={async () => {
+          if (!keyTarget) return;
+          try {
+            const values = await keyForm.validateFields();
+            await apiPost('/approvals/key-handover', { listingId: keyTarget.id, ...values });
+            message.success('钥匙委托申请已提交，等待店长/管理员审批');
+            setKeyTarget(null);
+            keyForm.resetFields();
+          } catch (error) {
+            if (error instanceof Error) message.error(errorMessage(error));
+          }
+        }}
+        width={520}
+      >
+        {keyTarget && (
+          <>
+            <div style={{ marginBottom: 12, color: '#6b7280' }}>{keyTarget.title} · {keyTarget.community.name}</div>
+            <Form form={keyForm} layout="vertical">
+              <Form.Item name="keyCount" label="钥匙数量（把）" rules={[{ required: true }]}>
+                <InputNumber min={1} max={20} style={{ width: '100%' }} data-testid="key-count" />
+              </Form.Item>
+              <Form.Item name="handoverTo" label="受托方 / 保管人" rules={[{ required: true, message: '请填写受托方' }]}>
+                <Input placeholder="如：城东店钥匙柜 / 店长赵敏" data-testid="key-handover-to" />
+              </Form.Item>
+              <Form.Item name="remark" label="备注">
+                <Input.TextArea rows={2} maxLength={200} showCount placeholder="如：业主委托门店保管，带看时登记领用" data-testid="key-remark" />
+              </Form.Item>
+            </Form>
+            <div style={{ color: '#8a9099', fontSize: 12 }}>提交后进入审批中心，审批通过后生效（不改变房源状态）。</div>
           </>
         )}
       </Modal>

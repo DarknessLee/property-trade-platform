@@ -22,7 +22,7 @@ function isValidIdCard(id: string): boolean {
 }
 
 async function main(): Promise<void> {
-  const [users, realNames, agencies, agents, communities, listings, customers, showings, contracts, progresses, payments, dicts, priceHistories, approvals, consultations, loans, appraisals, escrows, escrowTransactions, materials, taxes, appointments, registrations, commissions, allocations, commissionRules, approvalConfigs] =
+  const [users, realNames, agencies, agents, communities, listings, customers, showings, contracts, progresses, payments, dicts, priceHistories, approvals, consultations, loans, appraisals, escrows, escrowTransactions, materials, taxes, appointments, registrations, commissions, allocations, commissionRules, approvalConfigs, followUps, complaints, roleMenus] =
     await Promise.all([
       prisma.user.findMany(),
       prisma.realNameAuth.findMany(),
@@ -51,6 +51,9 @@ async function main(): Promise<void> {
       prisma.commissionAllocation.findMany(),
       prisma.commissionRule.findMany(),
       prisma.approvalFlowConfig.findMany(),
+      prisma.customerFollowUp.findMany(),
+      prisma.complaint.findMany(),
+      prisma.roleMenuConfig.findMany(),
     ]);
 
   // ---------- 数量 ----------
@@ -232,6 +235,16 @@ async function main(): Promise<void> {
   check('配置.佣金规则比例合计=100%', commissionRules.every((r) => Math.abs(r.agentRate + r.coAgentRate + r.storeRate + r.platformRate - 1) < 0.0001));
   check('配置.仅一条启用佣金规则', commissionRules.filter((r) => r.active).length === 1);
   check('配置.审批流类型唯一且模式合法', new Set(approvalConfigs.map((c) => c.type)).size === approvalConfigs.length && approvalConfigs.every((c) => ['single', 'two_level'].includes(c.mode)));
+
+  // ---------- E4 功能 ----------
+  check('数量.客户跟进', followUps.length >= 20, `实际 ${followUps.length}`);
+  check('数量.投诉', complaints.length === 6, `实际 ${complaints.length}`);
+  check('数量.角色菜单', roleMenus.length === 4, `实际 ${roleMenus.length}`);
+  check('编码.投诉编号格式', complaints.every((c) => /^TS\d{10}$/.test(c.code)));
+  check('状态.投诉状态与处理一致', complaints.every((c) => (c.status === 'pending' ? !c.handlerId && !c.handledAt : Boolean(c.handlerId && c.handlerName && c.handledAt))));
+  check('关系.跟进记录归属客户', followUps.every((f) => customers.some((c) => c.id === f.customerId) && f.content.length > 0));
+  check('配置.角色菜单JSON合法且非空', roleMenus.every((r) => { try { const keys = JSON.parse(r.menuKeysJson) as string[]; return Array.isArray(keys) && keys.length > 0 && keys.every((k) => k.startsWith('/admin')); } catch { return false; } }));
+  check('合同.补充条款为字符串', contracts.every((c) => typeof c.customTerms === 'string'));
 
   // ---------- 结果 ----------
   if (failures.length > 0) {

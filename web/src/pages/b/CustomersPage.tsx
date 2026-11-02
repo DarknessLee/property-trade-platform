@@ -5,7 +5,7 @@ import dayjs from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 import { apiGet, apiPatch, apiPost, errorMessage } from '../../api/client';
 import { useAuth } from '../../auth/AuthContext';
-import type { Customer, Paginated } from '../../types';
+import type { Customer, FollowUpItem, MatchItem, Paginated } from '../../types';
 import { formatDate } from '../../utils/format';
 
 const { Title, Text } = Typography;
@@ -25,6 +25,10 @@ export default function CustomersPage(): JSX.Element {
   const [editing, setEditing] = useState<Customer | null>(null);
   const [detail, setDetail] = useState<Customer | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [followUps, setFollowUps] = useState<FollowUpItem[]>([]);
+  const [followForm] = Form.useForm<{ content: string; nextAction?: string }>();
+  const [matches, setMatches] = useState<MatchItem[]>([]);
+  const [matchesOpen, setMatchesOpen] = useState(false);
   const [form] = Form.useForm();
 
   const load = useCallback(async () => {
@@ -94,9 +98,34 @@ export default function CustomersPage(): JSX.Element {
 
   const openDetail = async (record: Customer): Promise<void> => {
     try {
-      const data = await apiGet<Customer & { showings: unknown[] }>(`/customers/${record.id}`);
+      const data = await apiGet<Customer & { showings: unknown[]; followUps: FollowUpItem[] }>(`/customers/${record.id}`);
       setDetail(data);
+      setFollowUps(data.followUps ?? []);
       setDetailOpen(true);
+    } catch (error) {
+      message.error(errorMessage(error));
+    }
+  };
+
+  const addFollowUp = async (): Promise<void> => {
+    if (!detail) return;
+    try {
+      const values = await followForm.validateFields();
+      await apiPost(`/customers/${detail.id}/follow-ups`, values);
+      message.success('跟进记录已添加');
+      followForm.resetFields();
+      const data = await apiGet<Customer & { showings: unknown[]; followUps: FollowUpItem[] }>(`/customers/${detail.id}`);
+      setFollowUps(data.followUps ?? []);
+    } catch (error) {
+      if (error instanceof Error) message.error(errorMessage(error));
+    }
+  };
+
+  const loadMatches = async (): Promise<void> => {
+    if (!detail) return;
+    try {
+      setMatches(await apiGet<MatchItem[]>(`/customers/${detail.id}/matches`));
+      setMatchesOpen(true);
     } catch (error) {
       message.error(errorMessage(error));
     }
@@ -261,9 +290,54 @@ export default function CustomersPage(): JSX.Element {
                 { title: '状态', dataIndex: 'status', width: 90 },
               ]}
             />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 20 }}>
+              <Title level={5} style={{ margin: 0 }}>跟进记录（{followUps.length}）</Title>
+              {detail.type === 'buyer' && <Button size="small" type="primary" ghost onClick={() => void loadMatches()} data-testid="btn-customer-matches">需求匹配推荐</Button>}
+            </div>
+            <Form form={followForm} layout="vertical" style={{ marginTop: 8 }}>
+              <Form.Item name="content" rules={[{ required: true, message: '请填写跟进内容' }]} style={{ marginBottom: 8 }}>
+                <Input.TextArea rows={2} maxLength={500} placeholder="记录本次跟进内容，如：电话回访确认预算与区域" data-testid="followup-content" />
+              </Form.Item>
+              <Space.Compact style={{ width: '100%', marginBottom: 8 }}>
+                <Form.Item name="nextAction" style={{ flex: 1, marginBottom: 0 }}>
+                  <Input placeholder="下一步动作（可选），如：安排二次带看" data-testid="followup-next" />
+                </Form.Item>
+                <Button type="primary" onClick={() => void addFollowUp()} data-testid="btn-add-followup">添加跟进</Button>
+              </Space.Compact>
+            </Form>
+            <div style={{ maxHeight: 220, overflowY: 'auto' }}>
+              {followUps.map((item) => (
+                <div key={item.id} style={{ borderLeft: '3px solid #1677ff', background: '#f7f9fc', padding: '8px 10px', marginBottom: 8, borderRadius: 4 }}>
+                  <div style={{ color: '#4b5563' }}>{item.content}</div>
+                  <div style={{ color: '#8a9099', fontSize: 12, marginTop: 4 }}>
+                    {item.createdByName} · {formatDate(item.createdAt)}
+                    {item.nextAction ? ` · 下一步：${item.nextAction}` : ''}
+                    {item.nextFollowAt ? ` · 下次：${formatDate(item.nextFollowAt)}` : ''}
+                  </div>
+                </div>
+              ))}
+              {followUps.length === 0 && <Text type="secondary">暂无跟进记录</Text>}
+            </div>
           </>
         )}
       </Drawer>
+
+      <Modal title={detail ? `${detail.name} · 需求匹配推荐` : '需求匹配推荐'} open={matchesOpen} onCancel={() => setMatchesOpen(false)} footer={null} width={760}>
+        <Table
+          size="small"
+          rowKey="id"
+          pagination={false}
+          dataSource={matches}
+          locale={{ emptyText: '暂无匹配房源（仅买方客户支持匹配）' }}
+          columns={[
+            { title: '房源', render: (_, record: MatchItem) => <div><div>{record.title}</div><div style={{ color: '#8a9099', fontSize: 12 }}>{record.community.district} · {record.community.name} · {record.area}㎡</div></div> },
+            { title: '总价', width: 110, render: (_, record: MatchItem) => `${Math.round(record.totalPrice / 10000)} 万` },
+            { title: '匹配分', width: 90, render: (_, record: MatchItem) => <Tag color={record.score >= 60 ? 'green' : 'blue'}>{record.score}</Tag> },
+            { title: '匹配原因', render: (_, record: MatchItem) => <span style={{ color: '#6b7280', fontSize: 12 }}>{record.reasons.join('、') || '—'}</span> },
+          ]}
+        />
+      </Modal>
     </Card>
   );
 }

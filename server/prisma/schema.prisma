@@ -173,6 +173,7 @@ model HouseListing {
   priceHistory PriceHistory[]
   approvals    ApprovalRequest[]
   consultations Consultation[]
+  complaints    Complaint[]
 
   @@index([status])
   @@index([communityId])
@@ -208,6 +209,7 @@ model Customer {
   showings     Showing[]
   buyContracts Contract[] @relation("ContractBuyer")
   sellContracts Contract[] @relation("ContractSeller")
+  followUps    CustomerFollowUp[]
 
   @@index([agentId])
   @@index([type])
@@ -274,6 +276,7 @@ model Contract {
   signMethod          String? // esign_mock
   esignNo             String? // 第三方合同编号（Mock）
   contentSnapshot     String    @default("") // 签署时的合同正文快照
+  customTerms         String    @default("") // 在线填写的补充条款（E4）
   signedAt            DateTime?
   voidedAt            DateTime?
   createdAt           DateTime  @default(now())
@@ -677,4 +680,52 @@ model ApprovalFlowConfig {
   mode      String   @default("single") // single | two_level
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+/// 客户跟进记录（E4）
+model CustomerFollowUp {
+  id            String    @id @default(cuid())
+  customerId    String
+  content       String
+  nextAction    String?
+  nextFollowAt  DateTime?
+  createdById   String?
+  createdByName String    @default("")
+  createdAt     DateTime  @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+}
+
+/// 投诉/建议（E4：C 端提交，管理员审核处理）
+model Complaint {
+  id                String    @id @default(cuid())
+  code              String    @unique // TS2026000001
+  type              String // listing_quality 房源质量 | service 服务态度 | price 价格违规 | false_info 虚假信息 | other 其他
+  content           String
+  contactName       String
+  contactPhone      String
+  listingId         String?
+  complainantUserId String?
+  status            String    @default("pending") // pending 待处理 | processing 处理中 | resolved 已解决 | rejected 已驳回
+  handlerId         String?
+  handlerName       String?
+  handleComment     String?
+  handledAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  listing HouseListing? @relation(fields: [listingId], references: [id])
+
+  @@index([status])
+  @@index([complainantUserId])
+}
+
+/// 角色菜单配置（E4：管理员可配置各 B 端角色可见菜单）
+model RoleMenuConfig {
+  id           String   @id @default(cuid())
+  role         String   @unique // agent | store_manager | finance | admin
+  menuKeysJson String   @default("[]")
+  updatedAt    DateTime @updatedAt
 }
